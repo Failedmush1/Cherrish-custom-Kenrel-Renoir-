@@ -2378,8 +2378,11 @@ done:
 
 static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 {
-	u32			reg, reg1;
-	u32			timeout = 1500;
+	u32			reg;
+	u32			timeout = 2000;
+
+	if (pm_runtime_suspended(dwc->dev))
+		return 0;
 
 	dbg_event(0xFF, "run_stop", is_on);
 	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
@@ -2452,6 +2455,7 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 	}
 
 	do {
+		usleep_range(1000, 2000);
 		reg = dwc3_readl(dwc->regs, DWC3_DSTS);
 		reg &= DWC3_DSTS_DEVCTRLHLT;
 	} while (--timeout && !(!is_on ^ !reg));
