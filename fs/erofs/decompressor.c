@@ -17,12 +17,16 @@
 #define LZ4_DECOMPRESS_INPLACE_MARGIN(srcsize)  (((srcsize) >> 8) + 32)
 #endif
 
-struct z_erofs_lz4_decompress_ctx {
-	struct z_erofs_decompress_req *rq;
-	/* # of encoded, decoded pages */
-	unsigned int inpages, outpages;
-	/* decoded block total length (used for in-place decompression) */
-	unsigned int oend;
+struct z_erofs_decompressor {
+	/*
+	 * if destpages have sparsed pages, fill them with bounce pages.
+	 * it also check whether destpages indicate continuous physical memory.
+	 */
+	int (*prepare_destpages)(struct z_erofs_decompress_req *rq,
+				 struct list_head *pagepool);
+	int (*decompress)(struct z_erofs_decompress_req *rq, u8 *out,
+			  u8 *obase);
+	char *name;
 };
 
 int z_erofs_load_lz4_config(struct super_block *sb,
@@ -187,15 +191,15 @@ docopy:
 	return src;
 }
 
-/*
- * Get the exact inputsize with zero_padding feature.
- *  - For LZ4, it should work if zero_padding feature is on (5.3+);
- *  - For MicroLZMA, it'd be enabled all the time.
- */
-int z_erofs_fixup_insize(struct z_erofs_decompress_req *rq, const char *padbuf,
-			 unsigned int padbufsize)
+static int z_erofs_lz4_decompress(struct z_erofs_decompress_req *rq, u8 *out,
+				  u8 *obase)
 {
-	const char *padend;
+	const uint nrpages_out = PAGE_ALIGN(rq->pageofs_out +
+					    rq->outputsize) >> PAGE_SHIFT;
+	unsigned int inputmargin, inlen;
+	u8 *src, *src2;
+	bool copied, support_0padding;
+	int ret;
 
 	padend = memchr_inv(padbuf, 0, padbufsize);
 	if (!padend)
@@ -205,14 +209,10 @@ int z_erofs_fixup_insize(struct z_erofs_decompress_req *rq, const char *padbuf,
 	return 0;
 }
 
-static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
-				      u8 *out)
-{
-	struct z_erofs_decompress_req *rq = ctx->rq;
-	bool support_0padding = false, may_inplace = false;
-	unsigned int inputmargin;
-	u8 *headpage, *src;
-	int ret, maptype;
+	src = kmap_atomic(*rq->in);
+	src2 = src;
+	inputmargin = 0;
+	support_0padding = false;
 
 	DBG_BUGON(*rq->in == NULL);
 	headpage = kmap_atomic(*rq->in);
@@ -231,23 +231,22 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
 				(EROFS_BLKSIZ - 1));
 	}
 
-	inputmargin = rq->pageofs_in;
-	src = z_erofs_lz4_handle_overlap(ctx, headpage, &inputmargin,
-					 &maptype, may_inplace);
-	if (IS_ERR(src))
-		return PTR_ERR(src);
-
-	/* legacy format could compress extra data in a pcluster. */
-	if (rq->partial_decoding || !support_0padding)
-		ret = LZ4_decompress_safe_partial(src + inputmargin, out,
-				rq->inputsize, rq->outputsize, rq->outputsize);
-	else
-		ret = LZ4_decompress_safe(src + inputmargin, out,
-					  rq->inputsize, rq->outputsize);
-
-	if (ret != rq->outputsize) {
-		erofs_err(rq->sb, "failed to decompress %d in[%u, %u] out[%u]",
-			  ret, rq->inputsize, inputmargin, rq->outputsize);
+	copied = false;
+	inlen = rq->inputsize - inputmargin;
+	if (rq->inplace_io) {
+		const uint oend = (rq->pageofs_out +
+				   rq->outputsize) & ~PAGE_MASK;
+		if (rq->partial_decoding || !support_0padding ||
+		    rq->out[nrpages_out - 1] != rq->in[0] ||
+		    rq->inputsize - oend <
+		      LZ4_DECOMPRESS_INPLACE_MARGIN(inlen)) {
+			src = generic_copy_inplace_data(rq, src, inputmargin);
+			inputmargin = 0;
+			copied = true;
+		} else {
+			src = obase + ((nrpages_out - 1) << PAGE_SHIFT);
+		}
+	}
 
 		print_hex_dump(KERN_DEBUG, "[ in]: ", DUMP_PREFIX_OFFSET,
 			       16, 1, src + inputmargin, rq->inputsize, true);
@@ -267,10 +266,8 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
 		vm_unmap_ram(src, ctx->inpages);
 	} else if (maptype == 2) {
 		erofs_put_pcpubuf(src);
-	} else {
-		DBG_BUGON(1);
-		return -EFAULT;
-	}
+	else
+		kunmap_atomic(src2);
 	return ret;
 }
 
@@ -295,8 +292,27 @@ static int z_erofs_lz4_decompress(struct z_erofs_decompress_req *rq,
 		goto dstmap_out;
 	}
 
-	/* general decoding path which can be used for all cases */
-	ret = z_erofs_lz4_prepare_dstpages(&ctx, pagepool);
+	/*
+	 * For the case of small output size (especially much less
+	 * than PAGE_SIZE), memcpy the decompressed data rather than
+	 * compressed data is preferred.
+	 */
+	if (rq->outputsize <= PAGE_SIZE * 7 / 8) {
+		dst = erofs_get_pcpubuf(0);
+		if (IS_ERR(dst))
+			return PTR_ERR(dst);
+
+		rq->inplace_io = false;
+		ret = alg->decompress(rq, dst, NULL);
+		if (!ret)
+			copy_from_pcpubuf(rq->out, dst, rq->pageofs_out,
+					  rq->outputsize);
+
+		erofs_put_pcpubuf(dst);
+		return ret;
+	}
+
+	ret = alg->prepare_destpages(rq, pagepool);
 	if (ret < 0) {
 		return ret;
 	} else if (ret > 0) {
@@ -310,7 +326,8 @@ static int z_erofs_lz4_decompress(struct z_erofs_decompress_req *rq,
 	}
 
 dstmap_out:
-	ret = z_erofs_lz4_decompress_mem(&ctx, dst + rq->pageofs_out);
+	ret = alg->decompress(rq, dst + rq->pageofs_out, dst);
+
 	if (!dst_maptype)
 		kunmap_atomic(dst);
 	else if (dst_maptype == 2)
