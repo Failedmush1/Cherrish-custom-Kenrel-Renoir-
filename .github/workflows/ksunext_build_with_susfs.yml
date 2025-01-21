@@ -17,18 +17,33 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y clang lld python2 llvm git make gcc flex bison bc libssl-dev ccache libncurses5-dev libncursesw5-dev libtinfo5 cmake python3
+          sudo apt install -y clang lld llvm git make gcc flex bison bc libssl-dev ccache libncurses5-dev libncursesw5-dev cmake python3 python-is-python3
       - name: Build Project
         run: | 
           git config --global user.email "you@example.com"
           git config --global user.name "lithneas-github"
-          git submodule add https://github.com/kirilll1aliuk/KernelSU-Next.git
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.2-R14
+          
+          export KERNEL_REPO="$(pwd)"
+          git clone https://gitlab.com/simonpunk/susfs4ksu -b 1.4.2-kernel-5.4
+          
+          
+          cp $KERNEL_REPO/susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_REPO/KernelSU-Next/
+          cp $KERNEL_REPO/susfs4ksu/kernel_patches/KernelSU/kernel/sucompat.h $KERNEL_REPO/KernelSU-Next/kernel/
+          cp $KERNEL_REPO/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch $KERNEL_REPO/
+          cp $KERNEL_REPO/susfs4ksu/kernel_patches/fs/* $KERNEL_REPO/fs/
+          cp $KERNEL_REPO/susfs4ksu/kernel_patches/include/linux/* $KERNEL_REPO/include/linux/
+          
+          cd $KERNEL_REPO/KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch || echo 'skip error'
+          cd $KERNEL_REPO && patch -p1 < 50_add_susfs_in_kernel-5.4.patch || echo 'skip error'
+          
           git add .
           git commit -m "Blump up KSU for NonGKI kernel"
+          git status
           chmod +x ./build.sh
           ./build.sh all renoir
       - name: Compress
-        run: tar -czvf build.tar.gz ../out
+        run: tar -czvf build.tar.gz ../out/anykernel
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
