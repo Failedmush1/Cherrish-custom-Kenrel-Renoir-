@@ -22,19 +22,19 @@ jobs:
         run: | 
           git config --global user.email "you@example.com"
           git config --global user.name "lithneas-github"
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.2-R14
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.3
           
           export KERNEL_REPO="$(pwd)"
-          git clone https://gitlab.com/simonpunk/susfs4ksu -b 1.4.2-kernel-5.4
+          git clone https://gitlab.com/simonpunk/susfs4ksu -b kernel-5.4
           
           
-          cp $KERNEL_REPO/susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_REPO/KernelSU-Next/
+          # cp $KERNEL_REPO/susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_REPO/KernelSU-Next/
           cp $KERNEL_REPO/susfs4ksu/kernel_patches/KernelSU/kernel/sucompat.h $KERNEL_REPO/KernelSU-Next/kernel/
           cp $KERNEL_REPO/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch $KERNEL_REPO/
           cp $KERNEL_REPO/susfs4ksu/kernel_patches/fs/* $KERNEL_REPO/fs/
           cp $KERNEL_REPO/susfs4ksu/kernel_patches/include/linux/* $KERNEL_REPO/include/linux/
           
-          cd $KERNEL_REPO/KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch || echo 'skip error'
+          # cd $KERNEL_REPO/KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch || echo 'skip error'
           cd $KERNEL_REPO && patch -p1 < 50_add_susfs_in_kernel-5.4.patch || echo 'skip error'
 
           curl -L -k https://raw.githubusercontent.com/KhanhNguyen9872/KernelSU-Next/refs/heads/next/kernel/selinux/selinux.c > $KERNEL_REPO/KernelSU-Next/kernel/selinux/selinux.c
