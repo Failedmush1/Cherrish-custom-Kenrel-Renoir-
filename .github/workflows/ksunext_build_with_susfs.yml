@@ -22,7 +22,7 @@ jobs:
         run: | 
           git config --global user.email "you@example.com"
           git config --global user.name "lithneas-github"
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.3
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
           
           export KERNEL_REPO="$(pwd)"
           git clone https://gitlab.com/simonpunk/susfs4ksu -b kernel-5.4
