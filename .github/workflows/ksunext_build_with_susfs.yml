@@ -37,8 +37,8 @@ jobs:
           cd $KERNEL_REPO/KernelSU-Next && patch -p1 < 10_enable_susfs_for_ksu.patch || echo 'skip error'
           cd $KERNEL_REPO && patch -p1 < 50_add_susfs_in_kernel-5.4.patch || echo 'skip error'
 
-          curl -L -k https://raw.githubusercontent.com/KhanhNguyen9872/KernelSU-Next/refs/heads/next/kernel/selinux/selinux.c > $KERNEL_REPO/KernelSU-Next/kernel/selinux.c
-          
+          curl -L -k https://raw.githubusercontent.com/KhanhNguyen9872/KernelSU-Next/refs/heads/next/kernel/selinux/selinux.c > $KERNEL_REPO/KernelSU-Next/kernel/selinux/selinux.c
+
           git add .
           git commit -m "Blump up KSU for NonGKI kernel"
           git status
