@@ -337,18 +337,23 @@ static void b53_set_forwarding(struct b53_device *dev, int enable)
 
 	b53_write8(dev, B53_CTRL_PAGE, B53_SWITCH_MODE, mgmt);
 
-	/* Include IMP port in dumb forwarding mode
-	 */
-	b53_read8(dev, B53_CTRL_PAGE, B53_SWITCH_CTRL, &mgmt);
-	mgmt |= B53_MII_DUMB_FWDG_EN;
-	b53_write8(dev, B53_CTRL_PAGE, B53_SWITCH_CTRL, mgmt);
+	if (!is5325(dev)) {
+		/* Include IMP port in dumb forwarding mode */
+		b53_read8(dev, B53_CTRL_PAGE, B53_SWITCH_CTRL, &mgmt);
+		mgmt |= B53_MII_DUMB_FWDG_EN;
+		b53_write8(dev, B53_CTRL_PAGE, B53_SWITCH_CTRL, mgmt);
 
-	/* Look at B53_UC_FWD_EN and B53_MC_FWD_EN to decide whether
-	 * frames should be flooded or not.
-	 */
-	b53_read8(dev, B53_CTRL_PAGE, B53_IP_MULTICAST_CTRL, &mgmt);
-	mgmt |= B53_UC_FWD_EN | B53_MC_FWD_EN | B53_IPMC_FWD_EN;
-	b53_write8(dev, B53_CTRL_PAGE, B53_IP_MULTICAST_CTRL, mgmt);
+		/* Look at B53_UC_FWD_EN and B53_MC_FWD_EN to decide whether
+		 * frames should be flooded or not.
+		 */
+		b53_read8(dev, B53_CTRL_PAGE, B53_IP_MULTICAST_CTRL, &mgmt);
+		mgmt |= B53_UC_FWD_EN | B53_MC_FWD_EN | B53_IP_MC;
+		b53_write8(dev, B53_CTRL_PAGE, B53_IP_MULTICAST_CTRL, mgmt);
+	} else {
+		b53_read8(dev, B53_CTRL_PAGE, B53_IP_MULTICAST_CTRL, &mgmt);
+		mgmt |= B53_IP_MC;
+		b53_write8(dev, B53_CTRL_PAGE, B53_IP_MULTICAST_CTRL, mgmt);
+	}
 }
 
 static void b53_enable_vlan(struct b53_device *dev, bool enable,
@@ -1007,6 +1012,8 @@ static void b53_force_link(struct b53_device *dev, int port, int link)
 	if (port == dev->cpu_port) {
 		off = B53_PORT_OVERRIDE_CTRL;
 		val = PORT_OVERRIDE_EN;
+	} else if (is5325(dev)) {
+		return;
 	} else {
 		off = B53_GMII_PORT_OVERRIDE_CTRL(port);
 		val = GMII_PO_EN;
@@ -1022,7 +1029,8 @@ static void b53_force_link(struct b53_device *dev, int port, int link)
 }
 
 static void b53_force_port_config(struct b53_device *dev, int port,
-				  int speed, int duplex, int pause)
+				  int speed, int duplex,
+				  bool tx_pause, bool rx_pause)
 {
 	u8 reg, val, off;
 
@@ -1030,6 +1038,8 @@ static void b53_force_port_config(struct b53_device *dev, int port,
 	if (port == dev->cpu_port) {
 		off = B53_PORT_OVERRIDE_CTRL;
 		val = PORT_OVERRIDE_EN;
+	} else if (is5325(dev)) {
+		return;
 	} else {
 		off = B53_GMII_PORT_OVERRIDE_CTRL(port);
 		val = GMII_PO_EN;
@@ -1041,6 +1051,10 @@ static void b53_force_port_config(struct b53_device *dev, int port,
 		reg |= PORT_OVERRIDE_FULL_DUPLEX;
 	else
 		reg &= ~PORT_OVERRIDE_FULL_DUPLEX;
+
+	reg &= ~(0x3 << GMII_PO_SPEED_S);
+	if (is5301x(dev) || is58xx(dev))
+		reg &= ~PORT_OVERRIDE_SPEED_2000M;
 
 	switch (speed) {
 	case 2000:
@@ -1060,10 +1074,24 @@ static void b53_force_port_config(struct b53_device *dev, int port,
 		return;
 	}
 
-	if (pause & MLO_PAUSE_RX)
-		reg |= PORT_OVERRIDE_RX_FLOW;
-	if (pause & MLO_PAUSE_TX)
-		reg |= PORT_OVERRIDE_TX_FLOW;
+	if (is5325(dev))
+		reg &= ~PORT_OVERRIDE_LP_FLOW_25;
+	else
+		reg &= ~(PORT_OVERRIDE_RX_FLOW | PORT_OVERRIDE_TX_FLOW);
+
+	if (rx_pause) {
+		if (is5325(dev))
+			reg |= PORT_OVERRIDE_LP_FLOW_25;
+		else
+			reg |= PORT_OVERRIDE_RX_FLOW;
+	}
+
+	if (tx_pause) {
+		if (is5325(dev))
+			reg |= PORT_OVERRIDE_LP_FLOW_25;
+		else
+			reg |= PORT_OVERRIDE_TX_FLOW;
+	}
 
 	b53_write8(dev, B53_CTRL_PAGE, off, reg);
 }
@@ -1074,22 +1102,24 @@ static void b53_adjust_link(struct dsa_switch *ds, int port,
 	struct b53_device *dev = ds->priv;
 	struct ethtool_eee *p = &dev->ports[port].eee;
 	u8 rgmii_ctrl = 0, reg = 0, off;
-	int pause = 0;
+	bool tx_pause = false;
+	bool rx_pause = false;
 
 	if (!phy_is_pseudo_fixed_link(phydev))
 		return;
 
 	/* Enable flow control on BCM5301x's CPU port */
 	if (is5301x(dev) && port == dev->cpu_port)
-		pause = MLO_PAUSE_TXRX_MASK;
+		tx_pause = rx_pause = true;
 
 	if (phydev->pause) {
 		if (phydev->asym_pause)
-			pause |= MLO_PAUSE_TX;
-		pause |= MLO_PAUSE_RX;
+			tx_pause = true;
+		rx_pause = true;
 	}
 
-	b53_force_port_config(dev, port, phydev->speed, phydev->duplex, pause);
+	b53_force_port_config(dev, port, phydev->speed, phydev->duplex,
+			      tx_pause, rx_pause);
 	b53_force_link(dev, port, phydev->link);
 
 	if (is531x5(dev) && phy_interface_is_rgmii(phydev)) {
@@ -1151,7 +1181,7 @@ static void b53_adjust_link(struct dsa_switch *ds, int port,
 	} else if (is5301x(dev)) {
 		if (port != dev->cpu_port) {
 			b53_force_port_config(dev, dev->cpu_port, 2000,
-					      DUPLEX_FULL, MLO_PAUSE_TXRX_MASK);
+					      DUPLEX_FULL, true, true);
 			b53_force_link(dev, dev->cpu_port, 1);
 		}
 	}
@@ -1241,7 +1271,9 @@ void b53_phylink_mac_config(struct dsa_switch *ds, int port,
 
 	if (mode == MLO_AN_FIXED) {
 		b53_force_port_config(dev, port, state->speed,
-				      state->duplex, state->pause);
+				      state->duplex,
+				      !!(state->pause & MLO_PAUSE_TX),
+				      !!(state->pause & MLO_PAUSE_RX));
 		return;
 	}
 
@@ -1597,7 +1629,7 @@ static int b53_arl_search_wait(struct b53_device *dev)
 	do {
 		b53_read8(dev, B53_ARLIO_PAGE, B53_ARL_SRCH_CTL, &reg);
 		if (!(reg & ARL_SRCH_STDN))
-			return 0;
+			return -ENOENT;
 
 		if (reg & ARL_SRCH_VLID)
 			return 0;
