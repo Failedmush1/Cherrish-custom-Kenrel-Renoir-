@@ -2565,7 +2565,7 @@ static void task_numa_work(struct callback_head *work)
 		return;
 
 
-	if (!mmap_read_trylock(mm))
+	if (!down_read_trylock(&mm->mmap_sem))
 		return;
 	vma = find_vma(mm, start);
 	if (!vma) {
@@ -2633,7 +2633,7 @@ out:
 		mm->numa_scan_offset = start;
 	else
 		reset_ptenuma_scan(p);
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 
 	/*
 	 * Make sure tasks use at least 32x as much time to run other code
@@ -3715,11 +3715,6 @@ static inline unsigned long cfs_rq_load_avg(struct cfs_rq *cfs_rq)
 }
 
 static int sched_balance_newidle(struct rq *this_rq, struct rq_flags *rf);
-
-static inline unsigned long task_util(struct task_struct *p)
-{
-	return READ_ONCE(p->se.avg.util_avg);
-}
 
 static inline unsigned long _task_util_est(struct task_struct *p)
 {
