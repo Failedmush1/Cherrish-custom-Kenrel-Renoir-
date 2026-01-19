@@ -25,6 +25,7 @@ jobs:
 
           curl -LSs 'https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh' | bash -s builtin
           git apply .github/workflows/*.patch
+          sed -i 's/#define mmap_lock mmap_sem//g' drivers/kernelsu/manual_su.h
           
           chmod +x ./build.sh
           ./build.sh all renoir
