@@ -22,7 +22,8 @@ jobs:
         run: | 
           git config --global user.email "you@example.com"
           git config --global user.name "lithneas-github"
-          
+
+          rm -rf drivers/kernelsu
           git clone https://github.com/KernelSU-Next/KernelSU-Next drivers/kernelsu
           cd drivers/kernelsu
           git checkout v1.1.1
