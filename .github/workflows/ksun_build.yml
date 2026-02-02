@@ -27,6 +27,7 @@ jobs:
           cd drivers/kernelsu
           git checkout v1.1.1
           cd ../..
+          rm -rf drivers/kernelsu/.git
           git add .
           git commit -m "Include KSUN v1.1.1"
 
