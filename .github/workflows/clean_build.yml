@@ -17,7 +17,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y clang lld llvm git make gcc flex bison bc libssl-dev ccache libncurses5-dev libncursesw5-dev cmake python3 python-is-python3
+          sudo apt install -y clang lld llvm git make gcc flex bison bc libssl-dev ccache libncurses5-dev libncursesw5-dev cmake python3 python-is-python3 cpio
       - name: Build Project
         run: | 
           git config --global user.email "you@example.com"
