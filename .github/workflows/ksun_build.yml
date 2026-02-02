@@ -1,0 +1,41 @@
+name: Build kernel | KSUN
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y clang lld llvm git make gcc flex bison bc libssl-dev ccache libncurses5-dev libncursesw5-dev cmake python3 python-is-python3 cpio
+      - name: Build Project
+        run: | 
+          git config --global user.email "you@example.com"
+          git config --global user.name "lithneas-github"
+          
+          git clone https://github.com/KernelSU-Next/KernelSU-Next drivers/kernelsu
+          cd drivers/kernelsu
+          git checkout v1.1.1
+          cd ../..
+          git add .
+          git commit -m "Include KSUN v1.1.1"
+
+          chmod +x ./build.sh
+          ./build.sh all renoir
+      - name: Compress
+        run: tar -czvf build.tar.gz ../out/anykernel/Mint*.zip
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build.tar.gz
