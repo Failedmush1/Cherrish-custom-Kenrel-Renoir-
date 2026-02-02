@@ -22,7 +22,7 @@ jobs:
         run: | 
           git config --global user.email "you@example.com"
           git config --global user.name "lithneas-github"
-
+          
           rm -rf drivers/kernelsu
           git clone https://github.com/KernelSU-Next/KernelSU-Next drivers/kernelsu
           cd drivers/kernelsu
@@ -30,7 +30,7 @@ jobs:
           cd ../..
           rm -rf drivers/kernelsu/.git
           git add .
-          git commit -m "Include KSUN v1.1.1"
+          git commit -m "Include KSUN v1.1.1" || echo "No changes to commit"
 
           chmod +x ./build.sh
           ./build.sh all renoir
