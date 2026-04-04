@@ -17,6 +17,9 @@
 #include <linux/moduleparam.h>
 #include <linux/badblocks.h>
 #include <linux/memremap.h>
+#ifndef BDI_CAP_SYNCHRONOUS_IO
+#define BDI_CAP_SYNCHRONOUS_IO 0x00000080
+#endif
 #include <linux/vmalloc.h>
 #include <linux/blk-mq.h>
 #include <linux/pfn_t.h>

@@ -17,6 +17,9 @@
 #include <linux/nd.h>
 #include <linux/backing-dev.h>
 #include "btt.h"
+#ifndef BDI_CAP_SYNCHRONOUS_IO
+#define BDI_CAP_SYNCHRONOUS_IO 0x00000080
+#endif
 #include "nd.h"
 
 enum log_ent_request {

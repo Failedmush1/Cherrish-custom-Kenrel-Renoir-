@@ -3942,7 +3942,7 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	struct tfa98xx *tfa98xx;
 	struct device_node *np = i2c->dev.of_node;
 	//int irq_flags;
-	unsigned int reg;
+	unsigned int reg = 0;
 	int ret;
 
 	pr_info("addr=0x%x\n", i2c->addr);
@@ -4029,6 +4029,7 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	if ((no_start == 0) && (no_reset == 0)) {
 		ret = regmap_read(tfa98xx->regmap, 0x03, &reg);
 		if (ret < 0) {
+	}
 			dev_err(&i2c->dev, "Failed to read Revision register: %d\n",
 				ret);
 			return -EIO;

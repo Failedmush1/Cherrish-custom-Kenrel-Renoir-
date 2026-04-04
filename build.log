@@ -1,0 +1,198 @@
+Building for renoir
+
+Building with clang
+------------------------------
+ Building Kernel Defconfig..
+------------------------------
+make[1]: Entering directory '/home/failedmush/out'
+  GEN     Makefile
+#
+# No change to .config
+#
+make[1]: Leaving directory '/home/failedmush/out'
+------------------------------
+ Building Kernel ...........
+------------------------------
+make[1]: Entering directory '/home/failedmush/out'
+  GEN     Makefile
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmai-fp2.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmai.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmaip-fp2.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmaip.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-v2.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-v2.1.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap-v2.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap-v2.1.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-iot.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-hsp.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-hsp.dtb
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-iot.dtb
+  CALL    /home/failedmush/android_kernel_xiaomi_sm8350-miui/scripts/atomic/check-atomics.sh
+  HDRINST usr/include/camera/media/cam_sensor.h
+  HDRINST usr/include/camera/media/cam_isp_ife.h
+  HDRINST usr/include/camera/media/cam_req_mgr.h
+  HDRINST usr/include/camera/media/cam_defs.h
+  HDRINST usr/include/camera/media/cam_icp.h
+  HDRINST usr/include/camera/media/cam_isp_sfe.h
+  HDRINST usr/include/camera/media/cam_tfe.h
+  HDRINST usr/include/camera/media/cam_ope.h
+  HDRINST usr/include/camera/media/cam_fd.h
+  HDRINST usr/include/camera/media/cam_jpeg.h
+  HDRINST usr/include/camera/media/cam_lrme.h
+  HDRINST usr/include/camera/media/cam_cpas.h
+  HDRINST usr/include/camera/media/cam_sync.h
+  HDRINST usr/include/camera/media/cam_isp_tfe.h
+  HDRINST usr/include/camera/media/cam_custom.h
+  HDRINST usr/include/camera/media/cam_isp.h
+  HDRINST usr/include/camera/media/cam_isp_vfe.h
+  HDRINST usr/include/camera/media/cam_sensor.h
+  HDRINST usr/include/camera/media/cam_isp_ife.h
+  HDRINST usr/include/camera/media/cam_defs.h
+  HDRINST usr/include/camera/media/cam_req_mgr.h
+  HDRINST usr/include/camera/media/cam_isp_sfe.h
+  HDRINST usr/include/camera/media/cam_icp.h
+  CALL    /home/failedmush/android_kernel_xiaomi_sm8350-miui/scripts/checksyscalls.sh
+  HDRINST usr/include/camera/media/cam_ope.h
+  HDRINST usr/include/camera/media/cam_tfe.h
+  HDRINST usr/include/camera/media/cam_fd.h
+  HDRINST usr/include/camera/media/cam_jpeg.h
+  HDRINST usr/include/camera/media/cam_lrme.h
+  HDRINST usr/include/camera/media/cam_cpas.h
+  HDRINST usr/include/camera/media/cam_sync.h
+  HDRINST usr/include/camera/media/cam_isp_tfe.h
+  HDRINST usr/include/camera/media/cam_isp.h
+  HDRINST usr/include/camera/media/cam_isp_vfe.h
+  HDRINST usr/include/camera/media/cam_custom.h
+  CHK     include/generated/compile.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/cetus-sm8350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/haydn-sm8350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmaip-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmaip-hsp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-mtp-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-qrd-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-rumi-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/mars-sm8350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/odin-sm8350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/star-sm8350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/venus-sm8350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/vili-sm8350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-idp-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-idp-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmai-fp2-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmai-fp2-hsp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-atp-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_sensor.h
+  HDRTEST usr/include/camera/media/cam_isp_ife.h
+  HDRTEST usr/include/camera/media/cam_defs.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-idp-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_req_mgr.h
+  HDRTEST usr/include/camera/media/cam_icp.h
+  HDRTEST usr/include/camera/media/cam_isp_sfe.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-idps-amoled-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_tfe.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-iot-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-iot-hsp-pm7250b-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_ope.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-iot-idp-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_fd.h
+  HDRTEST usr/include/camera/media/cam_jpeg.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-iot-idp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-iot-idps-amoled-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_lrme.h
+  CC      drivers/input/touchscreen/gt9897t/goodix_ts_core.o
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-iot-qrd-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupikp-qrd-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_cpas.h
+  HDRTEST usr/include/camera/media/cam_sync.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/zijin-sm7325-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_isp_tfe.h
+  HDRTEST usr/include/camera/media/cam_custom.h
+  HDRTEST usr/include/camera/media/cam_isp.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmai-hsp-overlay.dtbo
+  HDRTEST usr/include/camera/media/cam_isp_vfe.h
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmai-hsp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmaip-fp2-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/katmaip-fp2-hsp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-atp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-cdp-hsp-pro-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-cdp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-cdp-v2.2-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-hdk-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-hhg-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-mtp-hsp-pro-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-mtp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-mtp-v2-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-mtp-v2.1-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-qrd-hsp-pro-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-qrd-module-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahaina-qrd-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap-atp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap-cdp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap-hhg-hsp-pro-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap-mtp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lahainap-qrd-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/lisa-sm7325-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/mona-sm7325-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/redwood-sm7325-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/renoir-sm7350-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima-atp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima-idp-120fps-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima-idp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima-idps-digital-mics-120fps-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima-idps-digital-mics-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima-qrd-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/shima-rumi-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/taoyao-sm7325-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-atp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-idp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-idp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-idps-amoled-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-iot-hsp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-iot-hsp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-iot-idp-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-iot-idp-pm7250b-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-iot-idps-amoled-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-iot-qrd-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-qrd-overlay.dtbo
+  DTC     arch/arm64/boot/dts/vendor/qcom/yupik-rumi-overlay.dtbo
+  CHK     kernel/kheaders_data.tar.xz
+  DTBOIMG arch/arm64/boot/dtbo.img
+  AR      drivers/input/touchscreen/gt9897t/built-in.a
+  AR      drivers/input/touchscreen/built-in.a
+  AR      drivers/input/built-in.a
+  AR      drivers/built-in.a
+  GEN     .version
+  CHK     include/generated/compile.h
+  LTO     vmlinux.o
+ld.lld: warning: android_kernel_xiaomi_sm8350-miui/drivers/staging/qcacld-3.0/../qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:1296:0: stack frame size (2576) exceeds limit (2048) in function 'dp_ipa_setup'
+ld.lld: warning: android_kernel_xiaomi_sm8350-miui/lib/lz4/lz4.c:1370:0: stack frame size (16496) exceeds limit (2048) in function 'LZ4_compress_fast'
+ld.lld: warning: android_kernel_xiaomi_sm8350-miui/lib/lz4/lz4.c:1424:0: stack frame size (16496) exceeds limit (2048) in function 'LZ4_compress_destSize'
+ld.lld: warning: android_kernel_xiaomi_sm8350-miui/lib/lz4/lz4hc.c:1822:0: stack frame size (66048) exceeds limit (2048) in function 'LZ4HC_compress_optimal'
+  MODPOST vmlinux.o
+  MODINFO modules.builtin.modinfo
+  LD      .tmp_vmlinux.kallsyms1
+  KSYM    .tmp_vmlinux.kallsyms1.o
+  LD      .tmp_vmlinux.kallsyms2
+  KSYM    .tmp_vmlinux.kallsyms2.o
+  LD      vmlinux
+  SORTEX  vmlinux
+  SYSMAP  System.map
+  Building modules, stage 2.
+  MODPOST 0 modules
+  OBJCOPY arch/arm64/boot/Image
+make[1]: Leaving directory '/home/failedmush/out'
+Kernel Build Costed 2min 22s
+------------------------------
+ Generating Flashable Kernel
+------------------------------
+ Removing old package file 
+ Getting AnyKernel 
+ Setting device info 
+ Copying Kernel File 
+ Packaging flashable Kernel 
+ Target File:  ../out/anykernel/Hana-kernel-renoir-2026-04042125-5.4.283.zip 

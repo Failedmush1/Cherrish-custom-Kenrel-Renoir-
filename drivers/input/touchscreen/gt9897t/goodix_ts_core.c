@@ -1,3 +1,5 @@
+#include <linux/proc_fs.h>
+#include <linux/proc_fs.h>
  /*
   * Goodix Touchscreen Driver
   * Copyright (C) 2020 - 2021 Goodix, Inc.
@@ -940,11 +942,11 @@ static int rawdata_proc_open(struct inode *inode, struct file *file)
 	return single_open(file, rawdata_proc_show, NULL);
 }
 
-static const struct file_operations rawdata_proc_fops = {
-	.open = rawdata_proc_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+static const struct proc_ops rawdata_proc_fops = {
+	.proc_open = rawdata_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
 };
 
 static void goodix_ts_procfs_init(void)
@@ -2748,8 +2750,8 @@ static ssize_t goodix_lockdown_info_read(struct file *file, char __user *buf,
 	else
 		return cnt;
 }
-static const struct file_operations goodix_lockdown_info_ops = {
-	.read = goodix_lockdown_info_read,
+static const struct proc_ops goodix_lockdown_info_ops = {
+	.proc_read = goodix_lockdown_info_read,
 };
 
 static ssize_t goodix_fw_version_info_read(struct file *file, char __user *buf,
@@ -2766,7 +2768,7 @@ static ssize_t goodix_fw_version_info_read(struct file *file, char __user *buf,
 	if (hw_ops->read_version) {
 		ret = hw_ops->read_version(goodix_core_data, &chip_ver);
 		if (!ret) {
-			cnt = snprintf(&k_buf[0], PAGE_SIZE,
+			cnt = snprintf(&k_buf[0], sizeof(k_buf),
 				"patch_pid:%s\n",
 				chip_ver.patch_pid);
 			cnt += snprintf(&k_buf[cnt], PAGE_SIZE,
@@ -2791,8 +2793,8 @@ static ssize_t goodix_fw_version_info_read(struct file *file, char __user *buf,
 	else
 		return cnt;
 }
-static const struct file_operations goodix_fw_version_info_ops = {
-	.read = goodix_fw_version_info_read,
+static const struct proc_ops goodix_fw_version_info_ops = {
+	.proc_read = goodix_fw_version_info_read,
 };
 
 static ssize_t goodix_selftest_read(struct file *file, char __user *buf,
@@ -2879,9 +2881,9 @@ out:
 
 	return retval;
 }
-static const struct file_operations goodix_selftest_ops = {
-	.read = goodix_selftest_read,
-	.write = goodix_selftest_write,
+static const struct proc_ops goodix_selftest_ops = {
+	.proc_read = goodix_selftest_read,
+	.proc_write = goodix_selftest_write,
 };
 
 #ifdef GOODIX_DEBUGFS_ENABLE
@@ -2968,7 +2970,6 @@ static int tpdbg_release(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations tpdbg_operations = {
-	.owner = THIS_MODULE,
 	.open = tpdbg_open,
 	.read = tpdbg_read,
 	.write = tpdbg_write,
@@ -3172,7 +3173,6 @@ MODULE_DEVICE_TABLE(platform, ts_core_ids);
 static struct platform_driver goodix_ts_driver = {
 	.driver = {
 		.name = GOODIX_CORE_DRIVER_NAME,
-		.owner = THIS_MODULE,
 #ifdef CONFIG_PM
 		.pm = &dev_pm_ops,
 #endif
