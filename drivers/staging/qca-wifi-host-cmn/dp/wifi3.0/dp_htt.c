@@ -4095,10 +4095,9 @@ static struct ppdu_info *dp_htt_process_tlv(struct dp_pdev *pdev,
 }
 #endif /* FEATURE_PERPKT_INFO */
 
-#ifdef WLAN_FEATURE_PKT_CAPTURE_V2
+#if defined(WDI_EVENT_ENABLE) && !defined(FEATURE_PERPKT_INFO) && defined(WLAN_FEATURE_PKT_CAPTURE_V2)
 static void dp_htt_process_stats_tlv(struct dp_soc *soc,
-				     qdf_nbuf_t htt_t2h_msg)
-{
+                                     qdf_nbuf_t htt_t2h_msg){
 	uint32_t length;
 	uint8_t tlv_type;
 	uint32_t tlv_length, tlv_expected_size;
