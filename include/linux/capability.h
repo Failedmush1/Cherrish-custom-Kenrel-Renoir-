@@ -261,6 +261,11 @@ static inline bool bpf_capable(void)
 	return capable(CAP_BPF) || capable(CAP_SYS_ADMIN);
 }
 
+static inline bool perfmon_capable(void)
+{
+	return capable(CAP_PERFMON) || capable(CAP_SYS_ADMIN);
+}
+
 static inline bool bpf_capable(void)
 {
 	return capable(CAP_BPF) || capable(CAP_SYS_ADMIN);
