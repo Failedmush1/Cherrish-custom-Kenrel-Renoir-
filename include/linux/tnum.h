@@ -5,10 +5,6 @@
  * propagate the unknown bits such that the tnum result represents all the
  * possible results for possible values of the operands.
  */
-
-#ifndef _LINUX_TNUM_H
-#define _LINUX_TNUM_H
-
 #include <linux/types.h>
 
 struct tnum {
@@ -97,5 +93,3 @@ static inline bool tnum_subreg_is_const(struct tnum a)
 {
 	return !(tnum_subreg(a)).mask;
 }
-
-#endif /* _LINUX_TNUM_H */

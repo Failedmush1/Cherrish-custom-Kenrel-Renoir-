@@ -687,18 +687,8 @@ error:
 	return retval;
 }
 
-#ifdef CONFIG_KSU
-extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
-#endif
-
 SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 {
-#ifdef CONFIG_KSU_SUSFS
-	if (ksu_handle_setresuid(ruid, euid, suid)) {
-		pr_info("Something wrong with ksu_handle_setresuid()\\n");
-	}
-#endif
-
 	return __sys_setresuid(ruid, euid, suid);
 }
 
@@ -1250,10 +1240,6 @@ static int override_release(char __user *release, size_t len)
 	return ret;
 }
 
-#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
-extern struct static_key_false susfs_is_uname_spoof_buffer_set;
-extern void susfs_spoof_uname(struct new_utsname* tmp);
-#endif
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 {
 	struct new_utsname tmp;
@@ -1264,6 +1250,18 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 	if (static_branch_likely(&susfs_is_uname_spoof_buffer_set))
 		susfs_spoof_uname(&tmp);
 #endif
+	/*
+	 * Android 25Q4 and later make netbpfload reject kernels older than
+	 * 5.10 based solely on uname(2).  This 5.4 vendor kernel carries the
+	 * required 5.10 BPF backport, so expose the corresponding compatibility
+	 * level only to that loader.  Keep the real release visible everywhere
+	 * else: globally changing UTS_RELEASE would also change module vermagic
+	 * and userspace feature selection unrelated to BPF.
+	 */
+	if (!strcmp(current->comm, "netbpfload")) {
+		strscpy(tmp.release, "5.10.199-dsu-bpf-compat",
+			sizeof(tmp.release));
+	}
 	up_read(&uts_sem);
 	if (copy_to_user(name, &tmp, sizeof(tmp)))
 		return -EFAULT;

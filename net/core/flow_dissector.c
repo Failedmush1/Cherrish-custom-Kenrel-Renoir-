@@ -27,11 +27,11 @@
 #include <scsi/fc/fc_fcoe.h>
 #include <uapi/linux/batadv_packet.h>
 #include <linux/bpf.h>
+#include <linux/bpf-netns.h>
 #if IS_ENABLED(CONFIG_NF_CONNTRACK)
 #include <net/netfilter/nf_conntrack_core.h>
 #include <net/netfilter/nf_conntrack_labels.h>
 #endif
-#include <linux/bpf-netns.h>
 
 static void dissector_set_key(struct flow_dissector *flow_dissector,
 			      enum flow_dissector_key_id key_id)
@@ -76,11 +76,6 @@ int flow_dissector_bpf_prog_attach_check(struct net *net,
 	enum netns_bpf_attach_type type = NETNS_BPF_FLOW_DISSECTOR;
 
 	if (net == &init_net) {
-		/* BPF flow dissector in the root namespace overrides
-		 * any per-net-namespace one. When attaching to root,
-		 * make sure we don't have any BPF program attached
-		 * to the non-root namespaces.
-		 */
 		struct net *ns;
 
 		for_each_net(ns) {
@@ -89,17 +84,34 @@ int flow_dissector_bpf_prog_attach_check(struct net *net,
 			if (rcu_access_pointer(ns->bpf.run_array[type]))
 				return -EEXIST;
 		}
-	} else {
-		/* Make sure root flow dissector is not attached
-		 * when attaching to the non-root namespace.
-		 */
-		if (rcu_access_pointer(init_net.bpf.run_array[type]))
-			return -EEXIST;
+	} else if (rcu_access_pointer(init_net.bpf.run_array[type])) {
+		return -EEXIST;
 	}
 
 	return 0;
 }
 #endif /* CONFIG_BPF_SYSCALL */
+/**
+ * skb_flow_get_be16 - extract be16 entity
+ * @skb: sk_buff to extract from
+ * @poff: offset to extract at
+ * @data: raw buffer pointer to the packet
+ * @hlen: packet header length
+ *
+ * The function will try to retrieve a be32 entity at
+ * offset poff
+ */
+static __be16 skb_flow_get_be16(const struct sk_buff *skb, int poff,
+				void *data, int hlen)
+{
+	__be16 *u, _u;
+
+	u = __skb_header_pointer(skb, poff, sizeof(_u), data, hlen, &_u);
+	if (u)
+		return *u;
+
+	return 0;
+}
 
 /**
  * __skb_flow_get_ports - extract the upper layer ports and return them
@@ -134,72 +146,6 @@ __be32 __skb_flow_get_ports(const struct sk_buff *skb, int thoff, u8 ip_proto,
 	return 0;
 }
 EXPORT_SYMBOL(__skb_flow_get_ports);
-
-static bool icmp_has_id(u8 type)
-{
-	switch (type) {
-	case ICMP_ECHO:
-	case ICMP_ECHOREPLY:
-	case ICMP_TIMESTAMP:
-	case ICMP_TIMESTAMPREPLY:
-	case ICMPV6_ECHO_REQUEST:
-	case ICMPV6_ECHO_REPLY:
-		return true;
-	}
-
-	return false;
-}
-
-/**
- * skb_flow_get_icmp_tci - extract ICMP(6) Type, Code and Identifier fields
- * @skb: sk_buff to extract from
- * @key_icmp: struct flow_dissector_key_icmp to fill
- * @data: raw buffer pointer to the packet
- * @toff: offset to extract at
- * @hlen: packet header length
- */
-void skb_flow_get_icmp_tci(const struct sk_buff *skb,
-			   struct flow_dissector_key_icmp *key_icmp,
-			   void *data, int thoff, int hlen)
-{
-	struct icmphdr *ih, _ih;
-
-	ih = __skb_header_pointer(skb, thoff, sizeof(_ih), data, hlen, &_ih);
-	if (!ih)
-		return;
-
-	key_icmp->type = ih->type;
-	key_icmp->code = ih->code;
-
-	/* As we use 0 to signal that the Id field is not present,
-	 * avoid confusion with packets without such field
-	 */
-	if (icmp_has_id(ih->type))
-		key_icmp->id = ih->un.echo.id ? : 1;
-	else
-		key_icmp->id = 0;
-}
-EXPORT_SYMBOL(skb_flow_get_icmp_tci);
-
-/* If FLOW_DISSECTOR_KEY_ICMP is set, dissect an ICMP packet
- * using skb_flow_get_icmp_tci().
- */
-static void __skb_flow_dissect_icmp(const struct sk_buff *skb,
-				    struct flow_dissector *flow_dissector,
-				    void *target_container,
-				    void *data, int thoff, int hlen)
-{
-	struct flow_dissector_key_icmp *key_icmp;
-
-	if (!dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_ICMP))
-		return;
-
-	key_icmp = skb_flow_dissector_target(flow_dissector,
-					     FLOW_DISSECTOR_KEY_ICMP,
-					     target_container);
-
-	skb_flow_get_icmp_tci(skb, key_icmp, data, thoff, hlen);
-}
 
 void skb_flow_dissect_meta(const struct sk_buff *skb,
 			   struct flow_dissector *flow_dissector,
@@ -687,30 +633,23 @@ __skb_flow_dissect_ports(const struct sk_buff *skb,
 			 void *target_container, void *data, int nhoff,
 			 u8 ip_proto, int hlen)
 {
-	struct flow_dissector_key_ports_range *key_ports_range = NULL;
-	struct flow_dissector_key_ports *key_ports = NULL;
-	__be32 ports;
+	enum flow_dissector_key_id dissector_ports = FLOW_DISSECTOR_KEY_MAX;
+	struct flow_dissector_key_ports *key_ports;
 
 	if (dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_PORTS))
-		key_ports = skb_flow_dissector_target(flow_dissector,
-						      FLOW_DISSECTOR_KEY_PORTS,
-						      target_container);
+		dissector_ports = FLOW_DISSECTOR_KEY_PORTS;
+	else if (dissector_uses_key(flow_dissector,
+				    FLOW_DISSECTOR_KEY_PORTS_RANGE))
+		dissector_ports = FLOW_DISSECTOR_KEY_PORTS_RANGE;
 
-	if (dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_PORTS_RANGE))
-		key_ports_range = skb_flow_dissector_target(flow_dissector,
-							    FLOW_DISSECTOR_KEY_PORTS_RANGE,
-							    target_container);
-
-	if (!key_ports && !key_ports_range)
+	if (dissector_ports == FLOW_DISSECTOR_KEY_MAX)
 		return;
 
-	ports = __skb_flow_get_ports(skb, nhoff, ip_proto, data, hlen);
-
-	if (key_ports)
-		key_ports->ports = ports;
-
-	if (key_ports_range)
-		key_ports_range->tp.ports = ports;
+	key_ports = skb_flow_dissector_target(flow_dissector,
+					      dissector_ports,
+					      target_container);
+	key_ports->ports = __skb_flow_get_ports(skb, nhoff, ip_proto,
+						data, hlen);
 }
 
 static void
@@ -763,7 +702,6 @@ static void __skb_flow_bpf_to_target(const struct bpf_flow_keys *flow_keys,
 				     struct flow_dissector *flow_dissector,
 				     void *target_container)
 {
-	struct flow_dissector_key_ports_range *key_ports_range = NULL;
 	struct flow_dissector_key_ports *key_ports = NULL;
 	struct flow_dissector_key_control *key_control;
 	struct flow_dissector_key_basic *key_basic;
@@ -808,20 +746,19 @@ static void __skb_flow_bpf_to_target(const struct bpf_flow_keys *flow_keys,
 		key_control->addr_type = FLOW_DISSECTOR_KEY_IPV6_ADDRS;
 	}
 
-	if (dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_PORTS)) {
+	if (dissector_uses_key(flow_dissector, FLOW_DISSECTOR_KEY_PORTS))
 		key_ports = skb_flow_dissector_target(flow_dissector,
 						      FLOW_DISSECTOR_KEY_PORTS,
 						      target_container);
+	else if (dissector_uses_key(flow_dissector,
+				    FLOW_DISSECTOR_KEY_PORTS_RANGE))
+		key_ports = skb_flow_dissector_target(flow_dissector,
+						      FLOW_DISSECTOR_KEY_PORTS_RANGE,
+						      target_container);
+
+	if (key_ports) {
 		key_ports->src = flow_keys->sport;
 		key_ports->dst = flow_keys->dport;
-	}
-	if (dissector_uses_key(flow_dissector,
-			       FLOW_DISSECTOR_KEY_PORTS_RANGE)) {
-		key_ports_range = skb_flow_dissector_target(flow_dissector,
-							    FLOW_DISSECTOR_KEY_PORTS_RANGE,
-							    target_container);
-		key_ports_range->tp.src = flow_keys->sport;
-		key_ports_range->tp.dst = flow_keys->dport;
 	}
 
 	if (dissector_uses_key(flow_dissector,
@@ -893,8 +830,12 @@ bool __skb_flow_dissect(const struct net *net,
 	struct flow_dissector_key_control *key_control;
 	struct flow_dissector_key_basic *key_basic;
 	struct flow_dissector_key_addrs *key_addrs;
+	struct flow_dissector_key_icmp *key_icmp;
 	struct flow_dissector_key_tags *key_tags;
 	struct flow_dissector_key_vlan *key_vlan;
+	struct bpf_prog_array *run_array;
+	struct bpf_prog *attached = NULL;
+	enum netns_bpf_attach_type type = NETNS_BPF_FLOW_DISSECTOR;
 	enum flow_dissect_ret fdret;
 	enum flow_dissector_key_id dissector_vlan = FLOW_DISSECTOR_KEY_MAX;
 	int num_hdrs = 0;
@@ -948,15 +889,13 @@ bool __skb_flow_dissect(const struct net *net,
 
 	WARN_ON_ONCE(!net);
 	if (net) {
-		enum netns_bpf_attach_type type = NETNS_BPF_FLOW_DISSECTOR;
-		struct bpf_prog_array *run_array;
-
 		rcu_read_lock();
 		run_array = rcu_dereference(init_net.bpf.run_array[type]);
 		if (!run_array)
 			run_array = rcu_dereference(net->bpf.run_array[type]);
+		attached = run_array ? READ_ONCE(run_array->items[0].prog) : NULL;
 
-		if (run_array) {
+		if (attached) {
 			struct bpf_flow_keys flow_keys;
 			struct bpf_flow_dissector ctx = {
 				.flow_keys = &flow_keys,
@@ -964,7 +903,6 @@ bool __skb_flow_dissect(const struct net *net,
 				.data_end = data + hlen,
 			};
 			__be16 n_proto = proto;
-			struct bpf_prog *prog;
 
 			if (skb) {
 				ctx.skb = skb;
@@ -975,8 +913,7 @@ bool __skb_flow_dissect(const struct net *net,
 				n_proto = skb->protocol;
 			}
 
-			prog = READ_ONCE(run_array->items[0].prog);
-			ret = bpf_flow_dissect(prog, &ctx, n_proto, nhoff,
+			ret = bpf_flow_dissect(attached, &ctx, n_proto, nhoff,
 					       hlen, flags);
 			__skb_flow_bpf_to_target(&flow_keys, flow_dissector,
 						 target_container);
@@ -1346,12 +1283,6 @@ ip_proto_again:
 				       data, nhoff, hlen);
 		break;
 
-	case IPPROTO_ICMP:
-	case IPPROTO_ICMPV6:
-		__skb_flow_dissect_icmp(skb, flow_dissector, target_container,
-					data, nhoff, hlen);
-		break;
-
 	default:
 		break;
 	}
@@ -1359,6 +1290,14 @@ ip_proto_again:
 	if (!(key_control->flags & FLOW_DIS_IS_FRAGMENT))
 		__skb_flow_dissect_ports(skb, flow_dissector, target_container,
 					 data, nhoff, ip_proto, hlen);
+
+	if (dissector_uses_key(flow_dissector,
+			       FLOW_DISSECTOR_KEY_ICMP)) {
+		key_icmp = skb_flow_dissector_target(flow_dissector,
+						     FLOW_DISSECTOR_KEY_ICMP,
+						     target_container);
+		key_icmp->icmp = skb_flow_get_be16(skb, nhoff, data, hlen);
+	}
 
 	/* Process result of IP proto processing */
 	switch (fdret) {
@@ -1409,10 +1348,8 @@ static const void *flow_keys_hash_start(const struct flow_keys *flow)
 static inline size_t flow_keys_hash_length(const struct flow_keys *flow)
 {
 	size_t diff = FLOW_KEYS_HASH_OFFSET + sizeof(flow->addrs);
-	/* flow.addrs MUST be the last member in struct flow_keys because
-	 * different L3 protocols have different address length
-	 */
-	BUILD_BUG_ON((sizeof(*flow) - FLOW_KEYS_HASH_OFFSET) % sizeof(u32));
+	BUILD_BUG_ON(offsetof(typeof(*flow), addrs) !=
+		     sizeof(*flow) - sizeof(flow->addrs));
 
 	switch (flow->control.addr_type) {
 	case FLOW_DISSECTOR_KEY_IPV4_ADDRS:
@@ -1458,9 +1395,6 @@ __be32 flow_get_u32_dst(const struct flow_keys *flow)
 }
 EXPORT_SYMBOL(flow_get_u32_dst);
 
-/* Sort the source and destination IP (and the ports if the IP are the same),
- * to have consistent hash within the two directions
- */
 static inline void __flow_hash_consistentify(struct flow_keys *keys)
 {
 	int addr_diff, i;
@@ -1780,6 +1714,7 @@ static int __init init_default_flow_dissectors(void)
 	skb_flow_dissector_init(&flow_keys_basic_dissector,
 				flow_keys_basic_dissector_keys,
 				ARRAY_SIZE(flow_keys_basic_dissector_keys));
+
 	return 0;
 }
 core_initcall(init_default_flow_dissectors);

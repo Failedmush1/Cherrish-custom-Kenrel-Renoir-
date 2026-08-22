@@ -272,8 +272,8 @@ static void activate_effective_progs(struct cgroup *cgrp,
 				     enum bpf_attach_type type,
 				     struct bpf_prog_array *old_array)
 {
-	old_array = rcu_replace_pointer(cgrp->bpf.effective[type], old_array,
-					lockdep_is_held(&cgroup_mutex));
+	rcu_swap_protected(cgrp->bpf.effective[type], old_array,
+			   lockdep_is_held(&cgroup_mutex));
 	/* free prog array after grace period, since __cgroup_bpf_run_*()
 	 * might be still walking the array
 	 */
@@ -1261,13 +1261,16 @@ const struct bpf_verifier_ops cg_dev_verifier_ops = {
  * @head: sysctl table header
  * @table: sysctl table
  * @write: sysctl is being read (= 0) or written (= 1)
- * @buf: pointer to buffer (in and out)
+ * @buf: pointer to buffer passed by user space
  * @pcount: value-result argument: value is size of buffer pointed to by @buf,
  *	result is size of @new_buf if program set new value, initial value
  *	otherwise
  * @ppos: value-result argument: value is position at which read from or write
  *	to sysctl is happening, result is new position if program overrode it,
  *	initial value otherwise
+ * @new_buf: pointer to pointer to new buffer that will be allocated if program
+ *	overrides new value provided by user space on sysctl write
+ *	NOTE: it's caller responsibility to free *new_buf if it was set
  * @type: type of program to be executed
  *
  * Program is run when sysctl is being accessed, either read or written, and
@@ -1278,7 +1281,8 @@ const struct bpf_verifier_ops cg_dev_verifier_ops = {
  */
 int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head,
 				   struct ctl_table *table, int write,
-				   char **buf, size_t *pcount, loff_t *ppos,
+				   void __user *buf, size_t *pcount,
+				   loff_t *ppos, void **new_buf,
 				   enum bpf_attach_type type)
 {
 	struct bpf_sysctl_kern ctx = {
@@ -1293,28 +1297,37 @@ int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head,
 		.new_updated = 0,
 	};
 	struct cgroup *cgrp;
-	loff_t pos = 0;
 	int ret;
 
 	ctx.cur_val = kmalloc_track_caller(ctx.cur_len, GFP_KERNEL);
-	if (!ctx.cur_val ||
-	    table->proc_handler(table, 0, ctx.cur_val, &ctx.cur_len, &pos)) {
+	if (ctx.cur_val) {
+		mm_segment_t old_fs;
+		loff_t pos = 0;
+
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		if (table->proc_handler(table, 0,
+					(void __user *)ctx.cur_val,
+					&ctx.cur_len, &pos)) {
+			/* Let BPF program decide how to proceed. */
+			ctx.cur_len = 0;
+		}
+		set_fs(old_fs);
+	} else {
 		/* Let BPF program decide how to proceed. */
 		ctx.cur_len = 0;
 	}
 
-	if (write && *buf && *pcount) {
+	if (write && buf && *pcount) {
 		/* BPF program should be able to override new value with a
 		 * buffer bigger than provided by user.
 		 */
 		ctx.new_val = kmalloc_track_caller(PAGE_SIZE, GFP_KERNEL);
 		ctx.new_len = min_t(size_t, PAGE_SIZE, *pcount);
-		if (ctx.new_val) {
-			memcpy(ctx.new_val, *buf, ctx.new_len);
-		} else {
+		if (!ctx.new_val ||
+		    copy_from_user(ctx.new_val, buf, ctx.new_len))
 			/* Let BPF program decide how to proceed. */
 			ctx.new_len = 0;
-		}
 	}
 
 	rcu_read_lock();
@@ -1325,8 +1338,7 @@ int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head,
 	kfree(ctx.cur_val);
 
 	if (ret == 1 && ctx.new_updated) {
-		kfree(*buf);
-		*buf = ctx.new_val;
+		*new_buf = ctx.new_val;
 		*pcount = ctx.new_len;
 	} else {
 		kfree(ctx.new_val);
@@ -1334,6 +1346,7 @@ int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head,
 
 	return ret == 1 ? 0 : -EPERM;
 }
+EXPORT_SYMBOL(__cgroup_bpf_run_filter_sysctl);
 
 #ifdef CONFIG_NET
 static bool __cgroup_bpf_prog_array_is_empty(struct cgroup *cgrp,
@@ -1757,7 +1770,7 @@ static u32 sysctl_convert_ctx_access(enum bpf_access_type type,
 		*insn++ = BPF_LDX_MEM(
 			BPF_SIZE(si->code), si->dst_reg, si->src_reg,
 			bpf_target_off(struct bpf_sysctl_kern, write,
-				       FIELD_SIZEOF(struct bpf_sysctl_kern,
+				       sizeof_field(struct bpf_sysctl_kern,
 						    write),
 				       target_size));
 		break;

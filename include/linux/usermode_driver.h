@@ -4,6 +4,7 @@
 #include <linux/umh.h>
 #include <linux/path.h>
 
+<<<<<<< HEAD
 #ifdef CONFIG_BPFILTER
 void __exit_umh(struct task_struct *tsk);
 
@@ -18,6 +19,8 @@ static inline void exit_umh(struct task_struct *tsk)
 }
 #endif
 
+=======
+>>>>>>> 7103de2804e1 (Backport Android 17 BPF support)
 struct umd_info {
 	const char *driver_name;
 	struct file *pipe_to_umh;
@@ -27,6 +30,10 @@ struct umd_info {
 	struct path wd;
 	struct pid *tgid;
 };
+<<<<<<< HEAD
+=======
+
+>>>>>>> 7103de2804e1 (Backport Android 17 BPF support)
 int umd_load_blob(struct umd_info *info, const void *data, size_t len);
 int umd_unload_blob(struct umd_info *info);
 int fork_usermode_driver(struct umd_info *info);
