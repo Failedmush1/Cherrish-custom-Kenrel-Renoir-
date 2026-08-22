@@ -2561,6 +2561,7 @@ static void hif_post_recv_buffers_failure(struct HIF_CE_pipe_info *pipe_info,
 QDF_STATUS hif_post_recv_buffers_for_pipe(struct HIF_CE_pipe_info *pipe_info)
 {
 	struct CE_handle *ce_hdl;
+	struct CE_state *CE_state;
 	qdf_size_t buf_sz;
 	struct hif_softc *scn = HIF_GET_SOFTC(pipe_info->HIF_CE_state);
 	QDF_STATUS status;
@@ -2575,7 +2576,7 @@ QDF_STATUS hif_post_recv_buffers_for_pipe(struct HIF_CE_pipe_info *pipe_info)
 
 	ce_hdl = pipe_info->ce_hdl;
 	ce_id = ((struct CE_state *)ce_hdl)->id;
-	struct CE_state *CE_state = (struct CE_state *)ce_hdl;
+	CE_state = (struct CE_state *)ce_hdl;
 
 	qdf_spin_lock_bh(&pipe_info->recv_bufs_needed_lock);
 	while (atomic_read(&pipe_info->recv_bufs_needed) > 0) {
