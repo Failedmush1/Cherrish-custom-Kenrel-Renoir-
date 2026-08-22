@@ -7,7 +7,10 @@
 #define __GF_SPI_H
 
 #include <linux/types.h>
+#include <linux/mutex.h>
 #include <linux/notifier.h>
+
+struct regulator;
 /**********************************************************/
 enum FP_MODE {
 	GF_IMAGE_MODE = 0,
@@ -18,7 +21,6 @@ enum FP_MODE {
 };
 
 #define SUPPORT_NAV_EVENT
-#define GOODIX_DRM_INTERFACE_WA
 
 #if defined(SUPPORT_NAV_EVENT)
 #define GF_NAV_INPUT_UP				KEY_UP
@@ -142,12 +144,15 @@ struct gf_dev {
 	char device_available;
 	char fb_black;
 	char wait_finger_down;
-#ifndef GOODIX_DRM_INTERFACE_WA
 	struct work_struct work;
-#endif
 #ifdef CONFIG_FINGERPRINT_FP_VREG_CONTROL
 	struct regulator *vreg;
 #endif
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *gf_default_state;
+	struct regulator *vdd;
+	struct mutex power_lock;
+	bool power_enabled;
 };
 
 int gf_parse_dts(struct gf_dev *gf_dev);
