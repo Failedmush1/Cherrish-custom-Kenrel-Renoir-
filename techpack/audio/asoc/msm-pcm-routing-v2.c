@@ -41301,9 +41301,7 @@ static const struct snd_soc_dapm_route intercon_mi2s[] = {
 #if !defined(CONFIG_TARGET_PRODUCT_TAOYAO)
 	{"PRI_MI2S_RX", NULL, "PRI_MI2S_DL_HL"},
 #endif
-#if !defined(CONFIG_TARGET_PRODUCT_RENOIR)
 	{"TERT_MI2S_RX", NULL, "TERT_MI2S_DL_HL"},
-#endif
 	{"QUAT_MI2S_UL_HL", NULL, "QUAT_MI2S_TX"},
 
 	{"INT0_MI2S_RX Port Mixer", "PRI_MI2S_TX", "PRI_MI2S_TX"},
@@ -42457,20 +42455,30 @@ static int get_drift_src_idx(int drift_src)
 {
 	if (drift_src == DRIFT_SRC_SW)
 		return DRIFT_SRC_SW;
-	else if ((drift_src >= AFE_PORT_ID_PRIMARY_TDM_RX)
+	else if (((drift_src >= AFE_PORT_ID_PRIMARY_TDM_RX)
 		&& (drift_src <= AFE_PORT_ID_PRIMARY_TDM_TX_7))
+		|| (drift_src == AFE_PORT_ID_PRIMARY_MI2S_RX)
+		|| (drift_src == AFE_PORT_ID_PRIMARY_MI2S_TX))
 		return DRIFT_SRC_AFE_PRI;
-	else if ((drift_src >= AFE_PORT_ID_SECONDARY_TDM_RX)
+	else if (((drift_src >= AFE_PORT_ID_SECONDARY_TDM_RX)
 		&& (drift_src <= AFE_PORT_ID_SECONDARY_TDM_TX_7))
+		|| (drift_src == AFE_PORT_ID_SECONDARY_MI2S_RX)
+		|| (drift_src == AFE_PORT_ID_SECONDARY_MI2S_TX))
 		return DRIFT_SRC_AFE_SEC;
-	else if ((drift_src >= AFE_PORT_ID_TERTIARY_TDM_RX)
+	else if (((drift_src >= AFE_PORT_ID_TERTIARY_TDM_RX)
 		&& (drift_src <= AFE_PORT_ID_TERTIARY_TDM_TX_7))
+		|| (drift_src == AFE_PORT_ID_TERTIARY_MI2S_RX)
+		|| (drift_src == AFE_PORT_ID_TERTIARY_MI2S_TX))
 		return DRIFT_SRC_AFE_TERT;
-	else if ((drift_src >= AFE_PORT_ID_QUATERNARY_TDM_RX)
+	else if (((drift_src >= AFE_PORT_ID_QUATERNARY_TDM_RX)
 		&& (drift_src <= AFE_PORT_ID_QUATERNARY_TDM_TX_7))
+		|| (drift_src == AFE_PORT_ID_QUATERNARY_MI2S_RX)
+		|| (drift_src == AFE_PORT_ID_QUATERNARY_MI2S_TX))
 		return DRIFT_SRC_AFE_QUAT;
-	else if ((drift_src >= AFE_PORT_ID_QUINARY_TDM_RX)
+	else if (((drift_src >= AFE_PORT_ID_QUINARY_TDM_RX)
 		&& (drift_src <= AFE_PORT_ID_QUINARY_TDM_TX_7))
+		|| (drift_src == AFE_PORT_ID_QUINARY_MI2S_RX)
+		|| (drift_src == AFE_PORT_ID_QUINARY_MI2S_TX))
 		return DRIFT_SRC_AFE_QUIN;
 	else
 		return -EINVAL;
