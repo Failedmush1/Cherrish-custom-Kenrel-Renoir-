@@ -14,7 +14,6 @@ int voice_init(void);
 int audio_cal_init(void);
 int core_init(void);
 int rtac_init(void);
-
 int msm_audio_ion_init(void);
 #if IS_ENABLED(CONFIG_MSM_AVTIMER)
 int avtimer_init(void);

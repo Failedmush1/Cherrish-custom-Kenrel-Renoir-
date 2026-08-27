@@ -580,7 +580,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 #elif defined(CONFIG_TARGET_PRODUCT_LISA) || defined(CONFIG_TARGET_PRODUCT_MONA) || defined(CONFIG_TARGET_PRODUCT_ZIJIN)
 			.aif_name = "PRI_TDM_RX_1_DL_US",
 #elif defined(CONFIG_TARGET_PRODUCT_TAOYAO)
-			.aif_name = "PRI_MI2S_DL_HL",		
+			.aif_name = "PRI_MI2S_DL_HL",
 #else
 			.aif_name = "TERT_TDM_RX_1_DL_US",
 #endif

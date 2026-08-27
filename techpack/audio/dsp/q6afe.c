@@ -537,20 +537,15 @@ static int q6afe_load_avcs_modules(int num_modules, u16 port_id,
 					AVS_MODULE_ID_DEPACKETIZER_COP_V2;
 					goto load_unload;
 				}
-				if (format_id == ASM_MEDIA_FMT_APTX_ADAPTIVE) {
-					goto load_unload;
-				}
-
 				if (format_id == ENC_CODEC_TYPE_LHDC) {
 					pm[i]->payload->load_unload_info[0].id1 =
 						AVS_MODULE_ID_DEPACKETIZER_COP_V1;
 					goto load_unload;
 				}
-				
-                                if (format_id == ASM_MEDIA_FMT_APTX_ADAPTIVE) {
+				if (format_id == ASM_MEDIA_FMT_APTX_ADAPTIVE) {
 					goto load_unload;
 				}
-				
+
 				pm[i]->payload->load_unload_info[1].module_type =
 						AMDB_MODULE_TYPE_DECODER;
 				pm[i]->payload->load_unload_info[1].id1 =
@@ -1499,7 +1494,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 				pr_err("%s: Unknown cmd 0x%x\n", __func__,
 						payload[0]);
 				break;
-				}
+			}
 		} else if (data->opcode ==
 				AFE_SERVICE_CMDRSP_SHARED_MEM_MAP_REGIONS) {
 			pr_debug("%s: mmap_handle: 0x%x, cal index %d\n",
@@ -3645,7 +3640,7 @@ static int afe_send_port_topology_id(u16 port_id)
 	if (ret < 0 && q6afe_is_afe_lsm_port(port_id)) {
 		pr_debug("%s: Check for LSM topology\n", __func__);
 		ret = afe_get_cal_topology_id(port_id, &topology_id,
-						AFE_LSM_TOPOLOGY_CAL);
+					      AFE_LSM_TOPOLOGY_CAL);
 	}
 	if (ret || !topology_id) {
 		pr_debug("%s: AFE port[%d] get_cal_topology[%d] invalid!\n",
@@ -6772,7 +6767,6 @@ static int __afe_port_start(u16 port_id, union afe_port_config *afe_config,
 	if (ret)
 		pr_err("%s: AFE port[0x%x] get power mode is invalid!\n",
 			__func__, port_id);
-
 	if (power_mode == AFE_POWER_MODE_ENABLE &&
 	    port_cfg.cdc_dma.bit_width != 16) {
 		port_cfg.cdc_dma.bit_width = 16;

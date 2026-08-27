@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/component.h>
+#include <linux/mmhardware_sysfs.h>
 #include <sound/soc.h>
 #include <sound/tlv.h>
 #include <soc/soundwire.h>
@@ -26,7 +27,6 @@
 #include "wcd938x.h"
 #include "internal.h"
 #include "asoc/bolero-slave-internal.h"
-#include "linux/mmhardware_sysfs.h"
 
 #define NUM_SWRS_DT_PARAMS 5
 #define WCD938X_VARIANT_ENTRY_SIZE 32
@@ -396,6 +396,12 @@ static int wcd938x_parse_port_mapping(struct device *dev,
 
 	for (i = 0; i < map_length; i++) {
 		port_num = dt_array[NUM_SWRS_DT_PARAMS * i];
+
+		if (port_num >= MAX_PORT || ch_iter >= MAX_CH_PER_PORT) {
+			dev_err(dev, "%s: Invalid port or channel number\n", __func__);
+			goto err_pdata_fail;
+		}
+
 		slave_port_type = dt_array[NUM_SWRS_DT_PARAMS * i + 1];
 		ch_mask = dt_array[NUM_SWRS_DT_PARAMS * i + 2];
 		ch_rate = dt_array[NUM_SWRS_DT_PARAMS * i + 3];
@@ -1885,9 +1891,7 @@ static int wcd938x_enable_req(struct snd_soc_dapm_widget *w,
 		default:
 			break;
 		}
-
 		if (wcd938x->adc_count == 0) {
-
 			snd_soc_component_update_bits(component,
 					WCD938X_DIGITAL_CDC_ANA_CLK_CTL, 0x10, 0x00);
 			snd_soc_component_update_bits(component,
@@ -2796,16 +2800,16 @@ static int wcd938x_ldoh_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-const char * const wcd938x_tx_master_ch_text[] = {
+static const char * const tx_master_ch_text[] = {
 	"ZERO", "SWRM_TX1_CH1", "SWRM_TX1_CH2", "SWRM_TX1_CH3", "SWRM_TX1_CH4",
 	"SWRM_TX2_CH1", "SWRM_TX2_CH2", "SWRM_TX2_CH3", "SWRM_TX2_CH4",
 	"SWRM_TX3_CH1", "SWRM_TX3_CH2", "SWRM_TX3_CH3", "SWRM_TX3_CH4",
 	"SWRM_PCM_IN",
 };
 
-const struct soc_enum wcd938x_tx_master_ch_enum =
-	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(wcd938x_tx_master_ch_text),
-					wcd938x_tx_master_ch_text);
+static const struct soc_enum tx_master_ch_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(tx_master_ch_text),
+					tx_master_ch_text);
 
 static void wcd938x_tx_get_slave_ch_type_idx(const char *wname, int *ch_idx)
 {
@@ -3075,6 +3079,7 @@ static const struct snd_kcontrol_new wcd9380_snd_controls[] = {
 
 	SOC_ENUM_EXT("RX HPH Mode", rx_hph_mode_mux_enum_wcd9380,
 		wcd938x_rx_hph_mode_get, wcd938x_rx_hph_mode_put),
+
 	SOC_ENUM_EXT("TX0 MODE", tx_mode_mux_enum_wcd9380,
 			wcd938x_tx_mode_get, wcd938x_tx_mode_put),
 	SOC_ENUM_EXT("TX1 MODE", tx_mode_mux_enum_wcd9380,
@@ -3121,31 +3126,31 @@ static const struct snd_kcontrol_new wcd938x_snd_controls[] = {
 	SOC_SINGLE_TLV("ADC4 Volume", WCD938X_ANA_TX_CH4, 0, 20, 0,
 			analog_gain),
 
-	SOC_ENUM_EXT("ADC1 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("ADC1 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("ADC2 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("ADC2 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("ADC3 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("ADC3 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("ADC4 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("ADC4 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC0 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC0 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC1 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC1 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("MBHC ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("MBHC ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC2 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC2 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC3 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC3 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC4 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC4 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC5 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC5 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC6 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC6 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
-	SOC_ENUM_EXT("DMIC7 ChMap", wcd938x_tx_master_ch_enum,
+	SOC_ENUM_EXT("DMIC7 ChMap", tx_master_ch_enum,
 			wcd938x_tx_master_ch_get, wcd938x_tx_master_ch_put),
 	SOC_SINGLE_EXT("MIC BIAS1 Standalone", SND_SOC_NOPM, MIC_BIAS_1, 1, 0,
 			wcd938x_get_micbias, wcd938x_set_micbias),
@@ -3856,7 +3861,7 @@ static int wcd938x_soc_codec_probe(struct snd_soc_component *component)
 	int variant;
 	int ret = -EINVAL;
 
-	dev_err(component->dev, "%s()\n", __func__);
+	dev_info(component->dev, "%s()\n", __func__);
 	wcd938x = snd_soc_component_get_drvdata(component);
 
 	if (!wcd938x)

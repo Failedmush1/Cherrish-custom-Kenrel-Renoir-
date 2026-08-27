@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -40,7 +41,6 @@
 #include "codecs/bolero/wsa-macro.h"
 #include "lahaina-port-config.h"
 #include "msm_dailink.h"
-#include "msm-common.h"
 #include <soc/qcom/socinfo.h>
 
 #define DRV_NAME "lahaina-asoc-snd"
@@ -136,6 +136,16 @@ enum {
 };
 
 enum {
+	PRIM_MI2S = 0,
+	SEC_MI2S,
+	TERT_MI2S,
+	QUAT_MI2S,
+	QUIN_MI2S,
+	SEN_MI2S,
+	MI2S_MAX,
+};
+
+enum {
 	WSA_CDC_DMA_RX_0 = 0,
 	WSA_CDC_DMA_RX_1,
 	RX_CDC_DMA_RX_0,
@@ -211,6 +221,33 @@ struct ext_mclk_src_info {
 	u32 clk_id;
 	u32 clk_root;
 	struct ext_mclk_gpio_info *gpio_info;
+};
+
+struct msm_asoc_mach_data {
+	struct snd_info_entry *codec_root;
+	int usbc_en2_gpio; /* used by gpio driver API */
+	int lito_v2_enabled;
+	struct device_node *dmic01_gpio_p; /* used by pinctrl API */
+	struct device_node *dmic23_gpio_p; /* used by pinctrl API */
+	struct device_node *dmic45_gpio_p; /* used by pinctrl API */
+	struct device_node *mi2s_gpio_p[MI2S_MAX]; /* used by pinctrl API */
+	atomic_t mi2s_gpio_ref_count[MI2S_MAX]; /* used by pinctrl API */
+	struct device_node *us_euro_gpio_p; /* used by pinctrl API */
+	struct pinctrl *usbc_en2_gpio_p; /* used by pinctrl API */
+	struct device_node *hph_en1_gpio_p; /* used by pinctrl API */
+	struct device_node *hph_en0_gpio_p; /* used by pinctrl API */
+	bool supports_ext_mclk;
+	struct ext_mclk_src_info *ext_mclk_srcs;
+	u32 num_ext_mclk_srcs;
+	bool is_afe_config_done;
+	struct device_node *fsa_handle;
+	struct clk *lpass_audio_hw_vote;
+	int core_audio_vote_count;
+	u32 wsa_max_devs;
+	u32 tdm_max_slots; /* Max TDM slots used */
+	int wcd_disabled;
+	int (*get_wsa_dev_num)(struct snd_soc_component*);
+	struct afe_cps_hw_intf_cfg cps_config;
 };
 
 struct tdm_port {
@@ -1022,8 +1059,8 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
-	.key_code[1] = BTN_1,
-	.key_code[2] = BTN_2,
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
 	.key_code[3] = 0,
 	.key_code[4] = 0,
 	.key_code[5] = 0,
@@ -2028,40 +2065,22 @@ static int tdm_get_sample_rate(int value)
 		sample_rate = SAMPLING_RATE_8KHZ;
 		break;
 	case 1:
-		sample_rate = SAMPLING_RATE_11P025KHZ;
-		break;
-	case 2:
 		sample_rate = SAMPLING_RATE_16KHZ;
 		break;
-	case 3:
-		sample_rate = SAMPLING_RATE_22P05KHZ;
-		break;
-	case 4:
+	case 2:
 		sample_rate = SAMPLING_RATE_32KHZ;
 		break;
-	case 5:
-		sample_rate = SAMPLING_RATE_44P1KHZ;
-		break;
-	case 6:
+	case 3:
 		sample_rate = SAMPLING_RATE_48KHZ;
 		break;
-	case 7:
-		sample_rate = SAMPLING_RATE_88P2KHZ;
-		break;
-	case 8:
+	case 4:
 		sample_rate = SAMPLING_RATE_96KHZ;
 		break;
-	case 9:
+	case 5:
 		sample_rate = SAMPLING_RATE_176P4KHZ;
 		break;
-	case 10:
-		sample_rate = SAMPLING_RATE_192KHZ;
-		break;
-	case 11:
+	case 6:
 		sample_rate = SAMPLING_RATE_352P8KHZ;
-		break;
-	case 12:
-		sample_rate = SAMPLING_RATE_384KHZ;
 		break;
 	default:
 		sample_rate = SAMPLING_RATE_48KHZ;
@@ -2078,44 +2097,26 @@ static int tdm_get_sample_rate_val(int sample_rate)
 	case SAMPLING_RATE_8KHZ:
 		sample_rate_val = 0;
 		break;
-	case SAMPLING_RATE_11P025KHZ:
+	case SAMPLING_RATE_16KHZ:
 		sample_rate_val = 1;
 		break;
-	case SAMPLING_RATE_16KHZ:
+	case SAMPLING_RATE_32KHZ:
 		sample_rate_val = 2;
 		break;
-	case SAMPLING_RATE_22P05KHZ:
+	case SAMPLING_RATE_48KHZ:
 		sample_rate_val = 3;
 		break;
-	case SAMPLING_RATE_32KHZ:
+	case SAMPLING_RATE_96KHZ:
 		sample_rate_val = 4;
 		break;
-	case SAMPLING_RATE_44P1KHZ:
+	case SAMPLING_RATE_176P4KHZ:
 		sample_rate_val = 5;
 		break;
-	case SAMPLING_RATE_48KHZ:
-		sample_rate_val = 6;
-		break;
-	case SAMPLING_RATE_88P2KHZ:
-		sample_rate_val = 7;
-		break;
-	case SAMPLING_RATE_96KHZ:
-		sample_rate_val = 8;
-		break;
-	case SAMPLING_RATE_176P4KHZ:
-		sample_rate_val = 9;
-		break;
-	case SAMPLING_RATE_192KHZ:
-		sample_rate_val = 10;
-		break;
 	case SAMPLING_RATE_352P8KHZ:
-		sample_rate_val = 11;
-		break;
-	case SAMPLING_RATE_384KHZ:
-		sample_rate_val = 12;
+		sample_rate_val = 6;
 		break;
 	default:
-		sample_rate_val = 6;
+		sample_rate_val = 3;
 		break;
 	}
 	return sample_rate_val;
@@ -3207,7 +3208,8 @@ static int msm_mi2s_set_sclk(struct snd_pcm_substream *substream, bool enable)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int port_id = 0;
-	int index = cpu_dai->id;
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (cpu_dai->id) / 2;
 
 	port_id = msm_get_port_id(rtd->dai_link->id);
 	if (port_id < 0) {
@@ -5761,7 +5763,8 @@ void mi2s_disable_audio_vote(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	int index = cpu_dai->id;
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (cpu_dai->id) / 2;
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int sample_rate = 0;
@@ -5797,7 +5800,8 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	int index = cpu_dai->id;
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (cpu_dai->id) / 2;
 	unsigned int fmt = SND_SOC_DAIFMT_CBS_CFS;
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
@@ -5856,17 +5860,14 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 			mi2s_intf_conf[index].audio_core_vote = true;
 		}
 
-		/* Check if msm needs to provide the clock to the interface */
-		if (!mi2s_intf_conf[index].msm_is_mi2s_master) {
-			mi2s_clk[index].clk_id = mi2s_ebit_clk[index];
-			fmt = SND_SOC_DAIFMT_CBM_CFM;
-		}
-
 		mi2s_clk[index].clk_freq_in_hz = (sample_rate *
 					MI2S_NUM_CHANNELS * bit_per_sample);
 		dev_dbg(rtd->card->dev, "%s: clock rate %ul\n", __func__,
 			mi2s_clk[index].clk_freq_in_hz);
 
+		/* Check if msm needs to provide the clock to the interface */
+		if (!mi2s_intf_conf[index].msm_is_mi2s_master)
+			mi2s_clk[index].clk_id = mi2s_ebit_clk[index];
 		ret = msm_mi2s_set_sclk(substream, true);
 		if (ret < 0) {
 			dev_err(rtd->card->dev,
@@ -5875,12 +5876,6 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 			goto clean_up;
 		}
 
-		ret = snd_soc_dai_set_fmt(cpu_dai, fmt);
-		if (ret < 0) {
-			pr_err("%s: set fmt cpu dai failed for MI2S (%d), err:%d\n",
-				__func__, index, ret);
-			goto clk_off;
-		}
 		if (pdata->mi2s_gpio_p[index]) {
 			if (atomic_read(&(pdata->mi2s_gpio_ref_count[index]))
 									== 0) {
@@ -5895,6 +5890,15 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 			atomic_inc(&(pdata->mi2s_gpio_ref_count[index]));
 		}
 	}
+	if (!mi2s_intf_conf[index].msm_is_mi2s_master)
+		fmt = SND_SOC_DAIFMT_CBM_CFM;
+	ret = snd_soc_dai_set_fmt(cpu_dai, fmt);
+	if (ret < 0) {
+		pr_err("%s: set fmt cpu dai failed for MI2S (%d), err:%d\n",
+			__func__, index, ret);
+		goto clk_off;
+	}
+
 clk_off:
 	if (ret < 0)
 		msm_mi2s_set_sclk(substream, false);
@@ -5913,7 +5917,8 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 {
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	int index = rtd->cpu_dai->id;
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (rtd->cpu_dai->id) / 2;
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
@@ -8239,7 +8244,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 					sizeof(msm_mi2s_be_dai_links));
 				total_links +=
 					ARRAY_SIZE(msm_mi2s_be_dai_links);
-				dev_info(dev, "%s: Using msm_mi2s_be_dai_links\n", __func__);
 			}
 		}
 #ifndef CONFIG_AUXPCM_DISABLE
@@ -8553,7 +8557,6 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	codec_reg_done = true;
 	return 0;
 }
-
 
 static void msm_i2s_auxpcm_init(struct platform_device *pdev)
 {

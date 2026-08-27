@@ -753,7 +753,6 @@ struct msm_pcm_stream_app_type_cfg {
 	uint32_t copp_token;
 	int bit_width;
 	int copp_perf_mode;
-	int channel;
 };
 
 struct msm_pcm_channel_mixer_v2 {

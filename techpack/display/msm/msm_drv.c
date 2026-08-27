@@ -66,9 +66,6 @@
 #define MSM_VERSION_MINOR	4
 #define MSM_VERSION_PATCHLEVEL	0
 
-atomic_t resume_pending;
-wait_queue_head_t resume_wait_q;
-
 #define LASTCLOSE_TIMEOUT_MS	500
 
 #define msm_wait_event_timeout(waitq, cond, timeout_ms, ret)		\
@@ -1829,19 +1826,6 @@ static struct drm_driver msm_driver = {
 };
 
 #ifdef CONFIG_PM_SLEEP
-static int msm_pm_prepare(struct device *dev)
-{
-	atomic_inc(&resume_pending);
-	return 0;
-}
-
-static void msm_pm_complete(struct device *dev)
-{
-	atomic_set(&resume_pending, 0);
-	wake_up_all(&resume_wait_q);
-	return;
-}
-
 static int msm_pm_suspend(struct device *dev)
 {
 	struct drm_device *ddev;
@@ -1927,8 +1911,6 @@ static int msm_runtime_resume(struct device *dev)
 #endif
 
 static const struct dev_pm_ops msm_pm_ops = {
-	.prepare = msm_pm_prepare,
-	.complete = msm_pm_complete,
 	SET_SYSTEM_SLEEP_PM_OPS(msm_pm_suspend, msm_pm_resume)
 	SET_RUNTIME_PM_OPS(msm_runtime_suspend, msm_runtime_resume, NULL)
 };
@@ -2276,7 +2258,6 @@ static struct platform_driver msm_platform_driver = {
 		.of_match_table = dt_match,
 		.pm     = &msm_pm_ops,
 		.suppress_bind_attrs = true,
-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 };
 

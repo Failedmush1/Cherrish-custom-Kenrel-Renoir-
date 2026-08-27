@@ -118,12 +118,13 @@ CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 		-DANI_OS_TYPE_ANDROID=6 \
 		-DPTT_SOCK_SVC_ENABLE \
 		-Wall\
+		-Werror\
 		-D__linux__
 
-ifeq ($(CONFIG_BOARD_XIAOMI_ZIJIN), y)
+ifeq ($(TARGET_PRODUCT), zijin)
 	CDEFINES += -DCONFIG_TARGET_PRODUCT_ZIJIN
 endif
-ifeq ($(CONFIG_BOARD_XIAOMI_TAOYAO), y)
+ifeq ($(TARGET_PRODUCT), taoyao)
 	CDEFINES += -DCONFIG_TARGET_PRODUCT_TAOYAO
 endif
 
@@ -148,6 +149,10 @@ KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/dsp/Module
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/Module.symvers
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/Module.symvers
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module.symvers
+endif
+
+ifeq ($(TARGET_PRODUCT), $(filter $(TARGET_PRODUCT),taoyao))
+	CDEFINES += -DCONFIG_TARGET_PRODUCT_TAOYAO
 endif
 
 # Module information used by KBuild framework

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
-
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -411,7 +410,7 @@ out_micb_en:
 		break;
 	/* MICBIAS usage change */
 	case WCD_EVENT_POST_DAPM_MICBIAS_2_OFF:
-#ifdef CONFIG_TARGET_PRODUCT_TAOYAO1
+#ifdef CONFIG_TARGET_PRODUCT_TAOYAO
 	   if (mbhc->mbhc_cfg->enable_usbc_analog &&
 			(mbhc->is_hs_recording == true)) {
 			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_L_DET_EN, 0);
@@ -1217,7 +1216,7 @@ static void wcd_mbhc_swch_irq_handler(struct wcd_mbhc *mbhc)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_SCHMT_ISRC, 0);
 		mbhc->extn_cable_hph_rem = false;
 		wcd_mbhc_report_plug(mbhc, 0, jack_type);
-#ifdef CONFIG_TARGET_PRODUCT_TAOYAO1
+#ifdef CONFIG_TARGET_PRODUCT_TAOYAO
 		if (mbhc->mbhc_cfg->enable_usbc_analog &&
 			(mbhc->is_hs_recording == false)) {
 #else
@@ -1287,27 +1286,21 @@ int wcd_mbhc_get_button_mask(struct wcd_mbhc *mbhc)
 	switch (btn) {
 	case 0:
 		mask = SND_JACK_BTN_0;
-        pr_debug("%s() button is 0x%x[hook]", __func__, mask);
 		break;
 	case 1:
 		mask = SND_JACK_BTN_1;
-        pr_debug("%s() button is 0x%x[volume up]", __func__, mask);
 		break;
 	case 2:
 		mask = SND_JACK_BTN_2;
-        pr_debug("%s() button is 0x%x[volume down]", __func__, mask);
 		break;
 	case 3:
 		mask = SND_JACK_BTN_3;
-        pr_debug("%s() button is 0x%x", __func__, mask);
 		break;
 	case 4:
 		mask = SND_JACK_BTN_4;
-        pr_debug("%s() button is 0x%x", __func__, mask);
 		break;
 	case 5:
 		mask = SND_JACK_BTN_5;
-        pr_debug("%s() button is 0x%x", __func__, mask);
 		break;
 	default:
 		break;
@@ -1458,14 +1451,14 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 				pr_debug("%s: Switch irq kicked in, ignore\n",
 					__func__);
 			} else {
-				pr_debug("%s: Reporting btn %#x press\n",
-					 __func__, mbhc->buttons_pressed);
+				pr_debug("%s: Reporting btn press\n",
+					 __func__);
 				wcd_mbhc_jack_report(mbhc,
 						     &mbhc->button_jack,
 						     mbhc->buttons_pressed,
 						     mbhc->buttons_pressed);
-				pr_debug("%s: Reporting btn %#x release\n",
-					 __func__, mbhc->buttons_pressed);
+				pr_debug("%s: Reporting btn release\n",
+					 __func__);
 				wcd_mbhc_jack_report(mbhc,
 						&mbhc->button_jack,
 						0, mbhc->buttons_pressed);
@@ -1825,7 +1818,6 @@ static int wcd_mbhc_init_gpio(struct wcd_mbhc *mbhc,
 #endif
 
 #if IS_ENABLED(CONFIG_QCOM_FSA4480_I2C)
-
 static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 					   unsigned long mode, void *ptr)
 {
