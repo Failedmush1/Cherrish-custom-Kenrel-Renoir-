@@ -145,13 +145,13 @@ main(){
         exit -1
     fi
     TARGET_DEVICE=$2
-    DEFCONFIG_NAME="vendor/${TARGET_DEVICE}_defconfig";
+    DEFCONFIG_NAME="vendor/lahaina-qgki_defconfig vendor/xiaomi_QGKI.config vendor/${TARGET_DEVICE}_QGKI.config vendor/debugfs.config";
     if [ $1 == "help" -o $1 == "-h" ]
     then
         display_help
     elif [ $1 == "savedefconfig" ]
     then
-       save_defconfig;
+        save_defconfig;
     elif [ $1 == "cleanbuild" ]
     then
         clean;
@@ -175,7 +175,6 @@ main(){
         generate_flashable
     elif [ $1 == "defconfig" ]
     then
-        DEFCONFIG_NAME="vendor/lahaina-qgki_defconfig vendor/xiaomi_QGKI.config vendor/${TARGET_DEVICE}_QGKI.config"
         make_defconfig;
     else
         display_help
