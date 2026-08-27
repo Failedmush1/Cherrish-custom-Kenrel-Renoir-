@@ -6,7 +6,7 @@
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM hyp_core_ctl
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH ../drivers/soc/qcom
+#define TRACE_INCLUDE_PATH .
 #undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_FILE hyp_core_ctl_trace
 

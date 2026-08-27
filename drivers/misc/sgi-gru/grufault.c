@@ -69,14 +69,14 @@ static struct gru_thread_state *gru_find_lock_gts(unsigned long vaddr)
 	struct vm_area_struct *vma;
 	struct gru_thread_state *gts = NULL;
 
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 	vma = gru_find_vma(vaddr);
 	if (vma)
 		gts = gru_find_thread_state(vma, TSID(vaddr, vma));
 	if (gts)
 		mutex_lock(&gts->ts_ctxlock);
 	else
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 	return gts;
 }
 
@@ -86,7 +86,7 @@ static struct gru_thread_state *gru_alloc_locked_gts(unsigned long vaddr)
 	struct vm_area_struct *vma;
 	struct gru_thread_state *gts = ERR_PTR(-EINVAL);
 
-	mmap_write_lock(mm);
+	down_write(&mm->mmap_sem);
 	vma = gru_find_vma(vaddr);
 	if (!vma)
 		goto err;
@@ -95,11 +95,11 @@ static struct gru_thread_state *gru_alloc_locked_gts(unsigned long vaddr)
 	if (IS_ERR(gts))
 		goto err;
 	mutex_lock(&gts->ts_ctxlock);
-	mmap_write_downgrade(mm);
+	downgrade_write(&mm->mmap_sem);
 	return gts;
 
 err:
-	mmap_write_unlock(mm);
+	up_write(&mm->mmap_sem);
 	return gts;
 }
 
@@ -109,7 +109,7 @@ err:
 static void gru_unlock_gts(struct gru_thread_state *gts)
 {
 	mutex_unlock(&gts->ts_ctxlock);
-	mmap_read_unlock(current->mm);
+	up_read(&current->mm->mmap_sem);
 }
 
 /*
@@ -575,9 +575,9 @@ static irqreturn_t gru_intr(int chiplet, int blade)
 		 */
 		gts->ustats.fmm_tlbmiss++;
 		if (!gts->ts_force_cch_reload &&
-					mmap_read_trylock(gts->ts_mm)) {
+					down_read_trylock(&gts->ts_mm->mmap_sem)) {
 			gru_try_dropin(gru, gts, tfh, NULL);
-			mmap_read_unlock(gts->ts_mm);
+			up_read(&gts->ts_mm->mmap_sem);
 		} else {
 			tfh_user_polling_mode(tfh);
 			STAT(intr_mm_lock_failed);

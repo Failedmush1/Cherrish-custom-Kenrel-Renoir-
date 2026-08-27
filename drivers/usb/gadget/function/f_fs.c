@@ -2096,6 +2096,9 @@ static int functionfs_bind(struct ffs_data *ffs, struct usb_composite_dev *cdev)
 
 	ENTER();
 
+	ffs_log("enter: state %d setup_state %d flag %lu", ffs->state,
+		ffs->setup_state, ffs->flags);
+
 	if ((ffs->state != FFS_ACTIVE
 		 || test_and_set_bit(FFS_FL_BOUND, &ffs->flags)))
 		return -EBADFD;
@@ -3678,6 +3681,7 @@ static int ffs_func_set_alt(struct usb_function *f,
 	}
 
 	ffs_log("exit: ret %d", ret);
+
 	return ret;
 }
 

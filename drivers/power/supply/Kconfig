@@ -407,7 +407,7 @@ config BATTERY_TWL4030_MADC
 
 config QTI_BATTERY_CHARGER
 	tristate "QTI Glink battery charger"
-	depends on QTI_PMIC_GLINK && EXTCON
+	depends on QTI_PMIC_GLINK
 	help
 	  Say Y here to enable Qualcomm Technologies, Inc. battery charger
 	  driver which interfaces with the charger firmware running on the
@@ -477,6 +477,12 @@ config VENUS_FOR_BUILD
 	depends on QTI_BATTERY_CHARGER
 	help
 	  Say Y here to enable venus build debug
+
+config VILI_FOR_BUILD
+        bool "vili build debug"
+        depends on QTI_BATTERY_CHARGER
+        help
+          Say Y here to enable vili build debug
 
 config CHARGER_88PM860X
 	tristate "Marvell 88PM860x Charger driver"

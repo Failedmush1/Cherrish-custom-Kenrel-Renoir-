@@ -25,12 +25,6 @@
 #include <linux/sizes.h>
 #include "binder_alloc.h"
 #include "binder_trace.h"
-#ifdef CONFIG_OEM_KERNEL
-#include "binder_oem.h"
-
-extern struct task_struct *binder_buff_owner(struct binder_alloc *alloc);
-extern struct oem_binder_hook oem_binder_hook_set;
-#endif
 
 struct list_lru binder_alloc_lru;
 
@@ -218,7 +212,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		mm = alloc->vma_vm_mm;
 
 	if (mm) {
-		mmap_write_lock(mm);
+		down_write(&mm->mmap_sem);
 		vma = alloc->vma;
 	}
 
@@ -277,7 +271,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		/* vm_insert_page does not seem to increment the refcount */
 	}
 	if (mm) {
-		mmap_write_unlock(mm);
+		up_write(&mm->mmap_sem);
 		mmput_async(mm);
 	}
 	return 0;
@@ -310,7 +304,7 @@ err_page_ptr_cleared:
 	}
 err_no_vma:
 	if (mm) {
-		mmap_write_unlock(mm);
+		up_write(&mm->mmap_sem);
 		mmput_async(mm);
 	}
 	return vma ? -ENOMEM : -ESRCH;
@@ -431,20 +425,6 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 
 	/* Pad 0-size buffers so they get assigned unique addresses */
 	size = max(size, sizeof(void *));
-
-#ifdef CONFIG_OEM_KERNEL
-	if (oem_binder_hook_set.oem_buf_overflow_hook && is_async
-		&& ((alloc->free_async_space < oem_binder_hook_set.oem_wahead_thresh
-		* (size + sizeof(struct binder_buffer)))
-		|| (alloc->free_async_space < oem_binder_hook_set.oem_wahead_space))) {
-			struct task_struct *owner;
-			owner = binder_buff_owner(alloc);
-
-			if (owner)
-				oem_binder_hook_set.oem_buf_overflow_hook(owner, current,
-						current->pid, false, 0);
-	}
-#endif
 
 	if (is_async && alloc->free_async_space < size) {
 		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,
@@ -1028,7 +1008,7 @@ enum lru_status binder_alloc_free_page(struct list_head *item,
 	mm = alloc->vma_vm_mm;
 	if (!mmget_not_zero(mm))
 		goto err_mmget;
-	if (!mmap_read_trylock(mm))
+	if (!down_read_trylock(&mm->mmap_sem))
 		goto err_down_read_mmap_sem_failed;
 	vma = find_vma(mm, page_addr);
 	if (vma && vma != binder_alloc_get_vma(alloc))
@@ -1044,7 +1024,7 @@ enum lru_status binder_alloc_free_page(struct list_head *item,
 
 		trace_binder_unmap_user_end(alloc, index);
 	}
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 	mmput_async(mm);
 
 	trace_binder_unmap_kernel_start(alloc, index);
@@ -1059,7 +1039,7 @@ enum lru_status binder_alloc_free_page(struct list_head *item,
 	return LRU_REMOVED_RETRY;
 
 err_invalid_vma:
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 err_down_read_mmap_sem_failed:
 	mmput_async(mm);
 err_mmget:

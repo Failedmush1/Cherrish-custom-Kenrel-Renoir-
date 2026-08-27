@@ -163,10 +163,10 @@ nouveau_svmm_bind(struct drm_device *dev, void *data,
 	 */
 
 	mm = get_task_mm(current);
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 
 	if (!cli->svm.svmm) {
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 		return -EINVAL;
 	}
 
@@ -192,7 +192,7 @@ nouveau_svmm_bind(struct drm_device *dev, void *data,
 	 */
 	args->result = 0;
 
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 	mmput(mm);
 
 	return 0;
@@ -341,14 +341,14 @@ nouveau_svmm_init(struct drm_device *dev, void *data,
 
 	/* Enable HMM mirroring of CPU address-space to VMM. */
 	svmm->mm = get_task_mm(current);
-	mmap_write_lock(svmm->mm);
+	down_write(&svmm->mm->mmap_sem);
 	svmm->mirror.ops = &nouveau_svmm;
 	ret = hmm_mirror_register(&svmm->mirror, svmm->mm);
 	if (ret == 0) {
 		cli->svm.svmm = svmm;
 		cli->svm.cli = cli;
 	}
-	mmap_write_unlock(svmm->mm);
+	up_write(&svmm->mm->mmap_sem);
 	mmput(svmm->mm);
 
 done:
@@ -496,12 +496,12 @@ nouveau_range_fault(struct nouveau_svmm *svmm, struct hmm_range *range)
 
 	ret = hmm_range_register(range, &svmm->mirror);
 	if (ret) {
-		mmap_read_unlock(svmm->mm);
+		up_read(&svmm->mm->mmap_sem);
 		return (int)ret;
 	}
 
 	if (!hmm_range_wait_until_valid(range, HMM_RANGE_DEFAULT_TIMEOUT)) {
-		mmap_read_unlock(svmm->mm);
+		up_read(&svmm->mm->mmap_sem);
 		return -EBUSY;
 	}
 
@@ -509,7 +509,7 @@ nouveau_range_fault(struct nouveau_svmm *svmm, struct hmm_range *range)
 	if (ret <= 0) {
 		if (ret == 0)
 			ret = -EBUSY;
-		mmap_read_unlock(svmm->mm);
+		up_read(&svmm->mm->mmap_sem);
 		hmm_range_unregister(range);
 		return ret;
 	}
@@ -611,11 +611,11 @@ nouveau_svm_fault(struct nvif_notify *notify)
 		/* Intersect fault window with the CPU VMA, cancelling
 		 * the fault if the address is invalid.
 		 */
-		mmap_read_lock(svmm->mm);
+		down_read(&svmm->mm->mmap_sem);
 		vma = find_vma_intersection(svmm->mm, start, limit);
 		if (!vma) {
 			SVMM_ERR(svmm, "wndw %016llx-%016llx", start, limit);
-			mmap_read_unlock(svmm->mm);
+			up_read(&svmm->mm->mmap_sem);
 			nouveau_svm_fault_cancel_fault(svm, buffer->fault[fi]);
 			continue;
 		}
@@ -625,7 +625,7 @@ nouveau_svm_fault(struct nvif_notify *notify)
 
 		if (buffer->fault[fi]->addr != start) {
 			SVMM_ERR(svmm, "addr %016llx", buffer->fault[fi]->addr);
-			mmap_read_unlock(svmm->mm);
+			up_read(&svmm->mm->mmap_sem);
 			nouveau_svm_fault_cancel_fault(svm, buffer->fault[fi]);
 			continue;
 		}
@@ -706,7 +706,7 @@ again:
 						NULL);
 			svmm->vmm->vmm.object.client->super = false;
 			mutex_unlock(&svmm->mutex);
-			mmap_read_unlock(svmm->mm);
+			up_read(&svmm->mm->mmap_sem);
 		}
 
 		/* Cancel any faults in the window whose pages didn't manage

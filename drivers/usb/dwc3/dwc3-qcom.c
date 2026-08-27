@@ -726,6 +726,9 @@ clk_disable:
 		clk_disable_unprepare(qcom->clks[i]);
 		clk_put(qcom->clks[i]);
 	}
+	if (qcom->gdsc)
+		if (regulator_disable(qcom->gdsc))
+			dev_err(qcom->dev, "unable to disable usb3 gdsc\n");
 
 	return ret;
 }

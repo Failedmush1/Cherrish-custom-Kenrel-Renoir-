@@ -594,10 +594,10 @@ static int check_mem_type(unsigned long start, size_t num_pages)
 	if (virt_addr_valid(start))
 		return 0;
 
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 	rc = __check_mem_type(find_vma(mm, start),
 			      start + num_pages * PAGE_SIZE);
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 
 	return rc;
 }

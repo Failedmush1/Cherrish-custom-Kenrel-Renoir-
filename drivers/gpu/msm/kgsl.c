@@ -349,8 +349,6 @@ static void kgsl_destroy_ion(struct kgsl_memdesc *memdesc)
 
 	if (meta != NULL) {
 		remove_dmabuf_list(meta);
-		dma_buf_unmap_attachment(meta->attach, meta->table,
-			DMA_BIDIRECTIONAL);
 		dma_buf_detach(meta->dmabuf, meta->attach);
 		dma_buf_put(meta->dmabuf);
 		kfree(meta);
@@ -2381,7 +2379,7 @@ static long gpuobj_free_on_fence(struct kgsl_device_private *dev_priv,
 	}
 
 	handle = kgsl_sync_fence_async_wait(event.fd,
-		gpuobj_free_fence_func, entry);
+		gpuobj_free_fence_func, entry, NULL);
 
 	if (IS_ERR(handle)) {
 		kgsl_mem_entry_unset_pend(entry);
@@ -2509,15 +2507,15 @@ static int memdesc_sg_virt(struct kgsl_memdesc *memdesc, unsigned long useraddr)
 		goto out;
 	}
 
-	mmap_read_lock(current->mm);
+	down_read(&current->mm->mmap_sem);
 	if (!check_vma(useraddr, memdesc->size)) {
-		mmap_read_unlock(current->mm);
+		up_read(&current->mm->mmap_sem);
 		ret = -EFAULT;
 		goto out;
 	}
 
 	npages = get_user_pages(useraddr, sglen, write, pages, NULL);
-	mmap_read_unlock(current->mm);
+	up_read(&current->mm->mmap_sem);
 
 	ret = (npages < 0) ? (int)npages : 0;
 	if (ret)
@@ -2634,7 +2632,7 @@ static int kgsl_setup_dmabuf_useraddr(struct kgsl_device *device,
 	 * Find the VMA containing this pointer and figure out if it
 	 * is a dma-buf.
 	 */
-	mmap_read_lock(current->mm);
+	down_read(&current->mm->mmap_sem);
 	vma = find_vma(current->mm, hostptr);
 
 	if (vma && vma->vm_file) {
@@ -2642,7 +2640,7 @@ static int kgsl_setup_dmabuf_useraddr(struct kgsl_device *device,
 
 		ret = check_vma_flags(vma, entry->memdesc.flags);
 		if (ret) {
-			mmap_read_unlock(current->mm);
+			up_read(&current->mm->mmap_sem);
 			return ret;
 		}
 
@@ -2651,7 +2649,7 @@ static int kgsl_setup_dmabuf_useraddr(struct kgsl_device *device,
 		 * already mapped
 		 */
 		if (vma->vm_file->f_op == &kgsl_fops) {
-			mmap_read_unlock(current->mm);
+			up_read(&current->mm->mmap_sem);
 			return -EFAULT;
 		}
 
@@ -2660,7 +2658,7 @@ static int kgsl_setup_dmabuf_useraddr(struct kgsl_device *device,
 		if (fd) {
 			dmabuf = dma_buf_get(fd - 1);
 			if (IS_ERR(dmabuf)) {
-				mmap_read_unlock(current->mm);
+				up_read(&current->mm->mmap_sem);
 				return PTR_ERR(dmabuf);
 			}
 			/*
@@ -2672,21 +2670,21 @@ static int kgsl_setup_dmabuf_useraddr(struct kgsl_device *device,
 			 */
 			if (dmabuf != vma->vm_file->private_data) {
 				dma_buf_put(dmabuf);
-				mmap_read_unlock(current->mm);
+				up_read(&current->mm->mmap_sem);
 				return -EBADF;
 			}
 		}
 	}
 
 	if (!dmabuf) {
-		mmap_read_unlock(current->mm);
+		up_read(&current->mm->mmap_sem);
 		return -ENODEV;
 	}
 
 	ret = kgsl_setup_dma_buf(device, pagetable, entry, dmabuf);
 	if (ret) {
 		dma_buf_put(dmabuf);
-		mmap_read_unlock(current->mm);
+		up_read(&current->mm->mmap_sem);
 		return ret;
 	}
 
@@ -2700,7 +2698,7 @@ static int kgsl_setup_dmabuf_useraddr(struct kgsl_device *device,
 	else
 		entry->memdesc.flags &= ~((u64) KGSL_MEMFLAGS_IOCOHERENT);
 
-	mmap_read_unlock(current->mm);
+	up_read(&current->mm->mmap_sem);
 	return 0;
 }
 #else
@@ -3038,6 +3036,8 @@ static int kgsl_setup_dma_buf(struct kgsl_device *device,
 		ret = PTR_ERR(sg_table);
 		goto out;
 	}
+
+	dma_buf_unmap_attachment(attach, sg_table, DMA_BIDIRECTIONAL);
 
 	meta->table = sg_table;
 	entry->priv_data = meta;

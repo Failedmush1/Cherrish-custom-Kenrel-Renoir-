@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_cvp_common.h"
@@ -401,20 +402,7 @@ static struct msm_cvp_smem *msm_cvp_session_get_smem(struct msm_cvp_inst *inst,
 			mutex_unlock(&inst->dma_cache.lock);
 			return NULL;
 		}
-
-		dprintk(CVP_ERR, "%s: invalid offset %d or size %d and smem is new %d\n",
-			__func__, buf->offset, buf->size, !found);
-
-		mutex_lock(&inst->dma_cache.lock);
-		if (atomic_dec_and_test(&smem->refcount)) {
-			// deinit it in msm_cvp_session_add_smem
-			CLEAR_USE_BITMAP(smem->bitmap_index, inst);
-			print_smem(CVP_MEM, "Map dereference",
-				inst, smem);
-		}
-		mutex_unlock(&inst->dma_cache.lock);
-
-		smem = NULL;
+		goto exit2;
 	}
 
 	return smem;
@@ -656,9 +644,10 @@ int msm_cvp_mark_user_persist(struct msm_cvp_inst *inst,
 		list_for_each_entry_safe(pbuf, dummy, &inst->persistbufs.list,
 				list) {
 			if (pbuf->ownership == CLIENT) {
-				if (pbuf->fd == buf->fd &&
-					pbuf->size == buf->size)
+				if (pbuf->fd == buf->fd && pbuf->size == buf->size) {
 					buf->fd = pbuf->smem->device_addr;
+					pbuf->ktid = ktid;
+				}
 				rc = 1;
 				break;
 			}
@@ -670,7 +659,6 @@ int msm_cvp_mark_user_persist(struct msm_cvp_inst *inst,
 			rc = -EFAULT;
 			break;
 		}
-		pbuf->ktid = ktid;
 		rc = 0;
 	}
 	return rc;

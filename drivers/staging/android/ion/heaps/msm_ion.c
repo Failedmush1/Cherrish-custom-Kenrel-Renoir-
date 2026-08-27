@@ -250,9 +250,10 @@ bool msm_ion_heap_is_secure(int heap_id)
 {
 	struct ion_heap *heap = ion_heap_by_id(heap_id);
 
-	if (IS_ERR(heap) || !(heap->type == ION_HEAP_TYPE_SECURE_CARVEOUT ||
-			      heap->type == ION_HEAP_TYPE_SYSTEM_SECURE ||
-			      heap->type == ION_HEAP_TYPE_HYP_CMA))
+	if (IS_ERR(heap) ||
+	    !(heap->type == (enum ion_heap_type)ION_HEAP_TYPE_SECURE_CARVEOUT ||
+	      heap->type == (enum ion_heap_type)ION_HEAP_TYPE_SYSTEM_SECURE ||
+	      heap->type == (enum ion_heap_type)ION_HEAP_TYPE_HYP_CMA))
 		return false;
 
 	return true;
@@ -649,7 +650,6 @@ static struct platform_driver msm_ion_driver = {
 	.driver = {
 		.name = "ion-msm",
 		.of_match_table = msm_ion_match_table,
-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 };
 

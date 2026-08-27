@@ -397,7 +397,7 @@ struct siw_umem *siw_umem_get(u64 start, u64 len, bool writable)
 	if (!writable)
 		foll_flags |= FOLL_FORCE;
 
-	mmap_read_lock(mm_s);
+	down_read(&mm_s->mmap_sem);
 
 	mlock_limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
 
@@ -441,7 +441,7 @@ struct siw_umem *siw_umem_get(u64 start, u64 len, bool writable)
 		num_pages -= got;
 	}
 out_sem_up:
-	mmap_read_unlock(mm_s);
+	up_read(&mm_s->mmap_sem);
 
 	if (rv > 0)
 		return umem;

@@ -663,6 +663,7 @@ static void xhci_pci_shutdown(struct usb_hcd *hcd)
 	if (xhci->quirks & XHCI_SPURIOUS_WAKEUP)
 		pci_set_power_state(pdev, PCI_D3hot);
 }
+EXPORT_SYMBOL_GPL(xhci_pci_resume);
 #endif /* CONFIG_PM */
 
 /*-------------------------------------------------------------------------*/

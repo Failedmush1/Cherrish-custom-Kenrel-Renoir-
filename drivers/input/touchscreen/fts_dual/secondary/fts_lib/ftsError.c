@@ -41,7 +41,6 @@ static ErrorList errors;
 */
 void logError(int force, const char *msg, ...)
 {
-	return;
 	if (force == 1
 #ifdef DEBUG
 	    || 1

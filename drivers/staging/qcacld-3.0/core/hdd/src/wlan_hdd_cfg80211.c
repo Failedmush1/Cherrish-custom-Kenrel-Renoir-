@@ -167,10 +167,6 @@
 #include "wlan_pkt_capture_ucfg_api.h"
 #include "os_if_pkt_capture.h"
 
-#ifdef FEATURE_WLAN_DYNAMIC_NSS
-#include "wlan_hdd_dynamic_nss.h"
-#endif
-
 #define g_mode_rates_size (12)
 #define a_mode_rates_size (8)
 #define DRIVER_DISCONNECT_REASON_INDEX \
@@ -7247,9 +7243,6 @@ const struct nla_policy wlan_hdd_wifi_config_policy[
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_RSN_IE] = {.type = NLA_U8},
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_GTX] = {.type = NLA_U8},
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_ELNA_BYPASS] = {.type = NLA_U8},
-	[QCA_WLAN_VENDOR_ATTR_CONFIG_DYNAMIC_NSS_SWITCH] = {.type = NLA_U8},
-	[QCA_WLAN_VENDOR_ATTR_CONFIG_BT_ACTIVE] = {.type = NLA_U8},
-	[QCA_WLAN_VENDOR_ATTR_CONFIG_SET_NSS_ANT] = {.type = NLA_U8},
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_ACCESS_POLICY] = {.type = NLA_U32 },
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_ACCESS_POLICY_IE_LIST] = {
 		.type = NLA_BINARY,
@@ -9059,43 +9052,6 @@ static int hdd_set_nss(struct hdd_adapter *adapter,
 	return ret;
 }
 
-#ifdef FEATURE_WLAN_DYNAMIC_NSS
-static int hdd_config_enable_dynamic_nss(struct hdd_adapter *adapter,
-			       const struct nlattr *attr)
-{
-	bool enable = nla_get_u8(attr);
-	wlan_hdd_config_enable_dynamic_nss(enable);
-
-	return 0;
-}
-
-static int hdd_config_set_bt_active(struct hdd_adapter *adapter,
-			       const struct nlattr *attr)
-{
-	bool active = nla_get_u8(attr);
-	wlan_hdd_config_set_bt_active(active);
-
-	return 0;
-}
-#endif
-
-/**
- * hdd_config_set_nss_and_antenna_mode() - set the number of spatial streams supported by the adapter
- * and set responding antenna mode.
- *
- * @adapter: hdd adapter
- * @attr: pointer to nla attr
- *
- * Return: 0 on success, negative errno on failure
- */
-static int hdd_config_set_nss_and_antenna_mode(struct hdd_adapter *adapter,
-			       const struct nlattr *attr)
-{
-	uint8_t nss;
-	nss = nla_get_u8(attr);
-	return wlan_hdd_set_nss_and_antenna_mode(adapter, nss, nss);
-}
-
 #ifdef FEATURE_WLAN_DYNAMIC_ARP_NS_OFFLOAD
 #define DYNAMIC_ARP_NS_ENABLE    1
 #define DYNAMIC_ARP_NS_DISABLE   0
@@ -9115,40 +9071,50 @@ static int hdd_set_arp_ns_offload(struct hdd_adapter *adapter,
 	QDF_STATUS qdf_status = QDF_STATUS_E_FAILURE;
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	struct wlan_objmgr_vdev *vdev;
+
 	errno = wlan_hdd_validate_context(hdd_ctx);
 	if (errno)
 		return errno;
+
 	if (!ucfg_pmo_is_arp_offload_enabled(hdd_ctx->psoc) ||
 	    !ucfg_pmo_is_ns_offloaded(hdd_ctx->psoc)) {
 		hdd_err_rl("ARP/NS Offload is disabled by ini");
 		return -EINVAL;
 	}
+
 	if (!ucfg_pmo_is_active_mode_offloaded(hdd_ctx->psoc)) {
 		hdd_err_rl("active mode offload is disabled by ini");
 		return -EINVAL;
 	}
+
 	if (adapter->device_mode != QDF_STA_MODE &&
 	    adapter->device_mode != QDF_P2P_CLIENT_MODE) {
 		hdd_err_rl("only support on sta/p2p-cli mode");
 		return -EINVAL;
 	}
+
 	vdev = hdd_objmgr_get_vdev(adapter);
 	if (!vdev) {
 		hdd_err("vdev is NULL");
 		return -EINVAL;
 	}
+
 	offload_state = nla_get_u8(attr);
+
 	if (offload_state == DYNAMIC_ARP_NS_ENABLE)
 		qdf_status = ucfg_pmo_dynamic_arp_ns_offload_enable(vdev);
 	else if (offload_state == DYNAMIC_ARP_NS_DISABLE)
 		qdf_status = ucfg_pmo_dynamic_arp_ns_offload_disable(vdev);
+
 	if (QDF_IS_STATUS_SUCCESS(qdf_status)) {
 		if (offload_state == DYNAMIC_ARP_NS_ENABLE)
 			ucfg_pmo_dynamic_arp_ns_offload_runtime_allow(vdev);
 		else
 			ucfg_pmo_dynamic_arp_ns_offload_runtime_prevent(vdev);
 	}
+
 	hdd_objmgr_put_vdev(vdev);
+
 	if (QDF_IS_STATUS_ERROR(qdf_status)) {
 		if (qdf_status == QDF_STATUS_E_ALREADY) {
 			hdd_info_rl("already set arp/ns offload %d",
@@ -9157,11 +9123,13 @@ static int hdd_set_arp_ns_offload(struct hdd_adapter *adapter,
 		}
 		return qdf_status_to_os_return(qdf_status);
 	}
+
 	if (!hdd_is_vdev_in_conn_state(adapter)) {
 		hdd_info("set not in connect state, updated state %d",
 			 offload_state);
 		return 0;
 	}
+
 	if (offload_state == DYNAMIC_ARP_NS_ENABLE) {
 		hdd_enable_arp_offload(adapter,
 				       pmo_arp_ns_offload_dynamic_update);
@@ -9173,8 +9141,10 @@ static int hdd_set_arp_ns_offload(struct hdd_adapter *adapter,
 		hdd_disable_ns_offload(adapter,
 				       pmo_arp_ns_offload_dynamic_update);
 	}
+
 	return 0;
 }
+
 #undef DYNAMIC_ARP_NS_ENABLE
 #undef DYNAMIC_ARP_NS_DISABLE
 #endif
@@ -9327,14 +9297,6 @@ static const struct independent_setters independent_setters[] = {
 	{QCA_WLAN_VENDOR_ATTR_CONFIG_ARP_NS_OFFLOAD,
 	 hdd_set_arp_ns_offload},
 #endif
-#ifdef FEATURE_WLAN_DYNAMIC_NSS
-	{QCA_WLAN_VENDOR_ATTR_CONFIG_DYNAMIC_NSS_SWITCH,
-	 hdd_config_enable_dynamic_nss},
-	{QCA_WLAN_VENDOR_ATTR_CONFIG_BT_ACTIVE,
-	 hdd_config_set_bt_active},
-#endif
-	{QCA_WLAN_VENDOR_ATTR_CONFIG_SET_NSS_ANT,
-	 hdd_config_set_nss_and_antenna_mode},
 	{QCA_WLAN_VENDOR_ATTR_CONFIG_WFC_STATE,
 	 hdd_set_wfc_state},
 };
@@ -15608,6 +15570,11 @@ static int __wlan_hdd_cfg80211_get_usable_channel(struct wiphy *wiphy,
 	if (0 != ret)
 		return ret;
 
+	if (hdd_ctx->driver_status == DRIVER_MODULES_CLOSED) {
+		hdd_err("Driver Modules are closed");
+		return -EINVAL;
+	}
+
 	res_msg = qdf_mem_malloc(NUM_CHANNELS *
 				 sizeof(*res_msg));
 
@@ -17161,6 +17128,17 @@ static void wlan_hdd_cfg80211_set_dfs_offload_feature(struct wiphy *wiphy)
 }
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
+static void wlan_hdd_set_mfp_optional(struct wiphy *wiphy)
+{
+	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_MFP_OPTIONAL);
+}
+#else
+static void wlan_hdd_set_mfp_optional(struct wiphy *wiphy)
+{
+}
+#endif
+
 #ifdef WLAN_FEATURE_DSRC
 static void wlan_hdd_get_num_dsrc_ch_and_len(struct hdd_config *hdd_cfg,
 					     int *num_ch, int *ch_len)
@@ -17382,6 +17360,19 @@ wlan_hdd_update_akm_suit_info(struct wiphy *wiphy)
 }
 #endif
 
+#ifdef CFG80211_MULTI_AKM_CONNECT_SUPPORT
+static void
+wlan_hdd_update_max_connect_akm(struct wiphy *wiphy)
+{
+	wiphy->max_num_akm_suites = WLAN_CM_MAX_CONNECT_AKMS;
+}
+#else
+static void
+wlan_hdd_update_max_connect_akm(struct wiphy *wiphy)
+{
+}
+#endif
+
 /*
  * FUNCTION: wlan_hdd_cfg80211_init
  * This function is called by hdd_wlan_startup()
@@ -17511,6 +17502,9 @@ int wlan_hdd_cfg80211_init(struct device *dev,
 
 	hdd_add_channel_switch_support(&wiphy->flags);
 	wiphy->max_num_csa_counters = WLAN_HDD_MAX_NUM_CSA_COUNTERS;
+
+	wlan_hdd_update_max_connect_akm(wiphy);
+
 	wlan_hdd_cfg80211_action_frame_randomization_init(wiphy);
 
 	wlan_hdd_set_nan_supported_bands(wiphy);
@@ -17830,6 +17824,8 @@ void wlan_hdd_update_wiphy(struct hdd_context *hdd_ctx)
 	mac_spoofing_enabled = ucfg_scan_is_mac_spoofing_enabled(hdd_ctx->psoc);
 	if (mac_spoofing_enabled)
 		wlan_hdd_cfg80211_scan_randomization_init(wiphy);
+
+	wlan_hdd_set_mfp_optional(wiphy);
 }
 
 /**
@@ -20515,9 +20511,81 @@ static bool wlan_hdd_is_akm_suite_fils(uint32_t key_mgmt)
 	case WLAN_AKM_SUITE_FILS_SHA384:
 	case WLAN_AKM_SUITE_FT_FILS_SHA256:
 	case WLAN_AKM_SUITE_FT_FILS_SHA384:
+		hdd_debug("Fils AKM : %x", key_mgmt);
 		return true;
 	default:
 		return false;
+	}
+}
+
+static int
+hdd_get_num_akm_suites(const struct cfg80211_connect_params *req)
+{
+	return req->crypto.n_akm_suites;
+}
+
+static uint32_t*
+hdd_get_akm_suites(const struct cfg80211_connect_params *req)
+{
+	return (uint32_t *)req->crypto.akm_suites;
+}
+
+#ifdef CFG80211_MULTI_AKM_CONNECT_SUPPORT
+#define MAX_AKM_SUITES WLAN_CM_MAX_CONNECT_AKMS
+#else
+#define MAX_AKM_SUITES NL80211_MAX_NR_AKM_SUITES
+#endif
+/**
+ * hdd_populate_crypto_akm_type() - populate akm type for crypto
+ * @vdev: pointed to vdev obmgr
+ * @req: connect req
+ *
+ * set the crypto akm type for corresponding akm type received
+ * from NL
+ *
+ * Return: None
+ */
+static void
+hdd_populate_crypto_akm_type(struct wlan_objmgr_vdev *vdev,
+			     const struct cfg80211_connect_params *req)
+{
+	QDF_STATUS status;
+	uint32_t i = 0;
+	uint32_t set_val = 0;
+	wlan_crypto_key_mgmt akm;
+
+	if (req->crypto.n_akm_suites) {
+		for (i = 0; i < req->crypto.n_akm_suites &&
+		     i < MAX_AKM_SUITES; i++) {
+			akm = osif_nl_to_crypto_akm_type(
+					req->crypto.akm_suites[i]);
+
+			HDD_SET_BIT(set_val, akm);
+		}
+
+		status = wlan_crypto_set_vdev_param(vdev,
+						    WLAN_CRYPTO_PARAM_KEY_MGMT,
+						    set_val);
+		if (QDF_IS_STATUS_ERROR(status))
+			hdd_err("Failed to set akm type %0x to crypto",
+				set_val);
+
+		status = wlan_crypto_set_vdev_param(vdev,
+						    WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT,
+						    set_val);
+		if (QDF_IS_STATUS_ERROR(status))
+			hdd_err("Failed to set original akm type %0x to crypto",
+				set_val);
+	} else {
+		set_val = 0;
+		/* Reset to none */
+		HDD_SET_BIT(set_val, WLAN_CRYPTO_KEY_MGMT_NONE);
+		wlan_crypto_set_vdev_param(vdev,
+					   WLAN_CRYPTO_PARAM_KEY_MGMT,
+					   set_val);
+		wlan_crypto_set_vdev_param(vdev,
+					   WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT,
+					   set_val);
 	}
 }
 
@@ -20528,10 +20596,14 @@ static bool wlan_hdd_is_conn_type_fils(struct cfg80211_connect_params *req)
 	 * Below n_akm_suites is defined as int in the kernel, even though it
 	 * is supposed to be unsigned.
 	 */
-	int num_akm_suites = req->crypto.n_akm_suites;
-	uint32_t key_mgmt = req->crypto.akm_suites[0];
+	int num_akm_suites;
+	uint32_t *akm_suites;
+	uint8_t i;
 	enum eAniAuthType fils_auth_type =
 		wlan_hdd_get_fils_auth_type(req->auth_type);
+
+	num_akm_suites = hdd_get_num_akm_suites(req);
+	akm_suites = hdd_get_akm_suites(req);
 
 	if (num_akm_suites <= 0)
 		return false;
@@ -20543,12 +20615,13 @@ static bool wlan_hdd_is_conn_type_fils(struct cfg80211_connect_params *req)
 	    (fils_auth_type == eSIR_DONOT_USE_AUTH_TYPE))
 		return false;
 
-	if (!wlan_hdd_is_akm_suite_fils(key_mgmt))
-		return false;
+	for (i = 0; i < num_akm_suites; i++) {
+		if (!wlan_hdd_is_akm_suite_fils(akm_suites[i]))
+			continue;
+		return true;
+	}
 
-	hdd_debug("Fils Auth %d AKM %d", fils_auth_type, key_mgmt);
-
-	return true;
+	return false;
 }
 
 #else
@@ -20897,59 +20970,70 @@ static void hdd_populate_crypto_auth_type(struct wlan_objmgr_vdev *vdev,
 }
 
 /**
- * hdd_populate_crypto_akm_type() - populate akm type for crypto
- * @vdev: pointed to vdev obmgr
- * @akm_type: legacy akm_type
- *
- * set the crypto akm type for corresponding akm type received
- * from NL
- *
- * Return: None
- */
-static void hdd_populate_crypto_akm_type(struct wlan_objmgr_vdev *vdev,
-					 u32 key_mgmt)
-{
-	QDF_STATUS status;
-	uint32_t set_val = 0;
-	wlan_crypto_key_mgmt crypto_akm_type =
-			osif_nl_to_crypto_akm_type(key_mgmt);
-
-	HDD_SET_BIT(set_val, crypto_akm_type);
-
-	status = wlan_crypto_set_vdev_param(vdev,
-					    WLAN_CRYPTO_PARAM_KEY_MGMT,
-					    set_val);
-	if (QDF_IS_STATUS_ERROR(status))
-		hdd_err("Failed to set akm type %0x to crypto component",
-			set_val);
-}
-
-/**
  * hdd_populate_crypto_cipher_type() - populate cipher type for crypto
- * @cipher: legacy cipher type
  * @vdev: pointed to vdev obmgr
- * @cipher_param_type: param type, UCST/MCAST
+ * @req: Pointer to security parameters
+ * @cipher_param_type: param type, UCAST/MCAST
  *
  * set the crypto cipher type for corresponding cipher type received
  * from NL
  *
  * Return: None
  */
-static void hdd_populate_crypto_cipher_type(u32 cipher,
-					    struct wlan_objmgr_vdev *vdev,
-					    wlan_crypto_param_type
-					    cipher_param_type)
+static void
+hdd_populate_crypto_cipher_type(struct wlan_objmgr_vdev *vdev,
+				struct cfg80211_connect_params *req,
+				wlan_crypto_param_type cipher_param_type)
 {
 	QDF_STATUS status;
 	uint32_t set_val = 0;
-	wlan_crypto_cipher_type crypto_cipher_type =
-			osif_nl_to_crypto_cipher_type(cipher);
+	uint32_t i = 0;
+	wlan_crypto_cipher_type cipher = WLAN_CRYPTO_CIPHER_NONE;
 
-	HDD_SET_BIT(set_val, crypto_cipher_type);
-	status = wlan_crypto_set_vdev_param(vdev, cipher_param_type, set_val);
-	if (QDF_IS_STATUS_ERROR(status))
-		hdd_debug("Failed to set cipher params %d type %0x to crypto",
-			  cipher_param_type, set_val);
+	switch (cipher_param_type) {
+	case WLAN_CRYPTO_PARAM_UCAST_CIPHER:
+		for (i = 0; i < req->crypto.n_ciphers_pairwise &&
+		     i < NL80211_MAX_NR_CIPHER_SUITES; i++) {
+			cipher =
+			osif_nl_to_crypto_cipher_type(req->crypto.ciphers_pairwise[i]);
+
+			HDD_SET_BIT(set_val, cipher);
+		}
+		status = wlan_crypto_set_vdev_param(vdev,
+						    cipher_param_type,
+						    set_val);
+		if (QDF_IS_STATUS_ERROR(status))
+			hdd_debug("Failed to set cipher params %d type %0x to crypto",
+				  cipher_param_type, set_val);
+		break;
+	case WLAN_CRYPTO_PARAM_MCAST_CIPHER:
+		cipher =
+			osif_nl_to_crypto_cipher_type(req->crypto.cipher_group);
+
+		HDD_SET_BIT(set_val, cipher);
+		status = wlan_crypto_set_vdev_param(vdev, cipher_param_type,
+						    set_val);
+		if (QDF_IS_STATUS_ERROR(status))
+			hdd_debug("Failed to set cipher params %d type %0x to crypto",
+				  cipher_param_type, set_val);
+		break;
+	default:
+		hdd_err("Neither of Pairwise/Groupwise cipher");
+		break;
+	}
+}
+
+static inline
+uint8_t hdd_get_rsn_cap_mfp(enum nl80211_mfp mfp_state)
+{
+	switch (mfp_state) {
+	case NL80211_MFP_REQUIRED:
+		return RSN_CAP_MFP_REQUIRED;
+	case NL80211_MFP_OPTIONAL:
+		return RSN_CAP_MFP_CAPABLE;
+	default:
+		return RSN_CAP_MFP_DISABLED;
+	}
 }
 
 /**
@@ -20969,38 +21053,52 @@ static void hdd_populate_crypto_params(struct wlan_objmgr_vdev *vdev,
 	/* Resetting the RSN caps for every connection */
 	wlan_crypto_set_vdev_param(vdev, WLAN_CRYPTO_PARAM_RSN_CAP, set_val);
 
-	if (req->crypto.n_akm_suites) {
-		hdd_populate_crypto_akm_type(vdev, req->crypto.akm_suites[0]);
-	} else {
-		/* Reset to none */
-		HDD_SET_BIT(set_val, WLAN_CRYPTO_KEY_MGMT_NONE);
-		wlan_crypto_set_vdev_param(vdev,
-					    WLAN_CRYPTO_PARAM_KEY_MGMT,
-					    set_val);
-	}
+	/* Fill AKM suites */
+	hdd_populate_crypto_akm_type(vdev, req);
+
+	/* Fill pairwise cipher suites */
 	if (req->crypto.n_ciphers_pairwise) {
-		hdd_populate_crypto_cipher_type(req->crypto.ciphers_pairwise[0],
-						vdev,
+		hdd_populate_crypto_cipher_type(vdev, req,
 						WLAN_CRYPTO_PARAM_UCAST_CIPHER);
 	} else {
 		set_val = 0;
 		/* Reset to none */
 		HDD_SET_BIT(set_val, WLAN_CRYPTO_CIPHER_NONE);
 		wlan_crypto_set_vdev_param(vdev,
-					    WLAN_CRYPTO_PARAM_UCAST_CIPHER,
-					    set_val);
+					   WLAN_CRYPTO_PARAM_UCAST_CIPHER,
+					   set_val);
 	}
+
+	/* Fill group cipher suites */
 	if (req->crypto.cipher_group) {
-		hdd_populate_crypto_cipher_type(req->crypto.cipher_group,
-						vdev,
+		hdd_populate_crypto_cipher_type(vdev, req,
 						WLAN_CRYPTO_PARAM_MCAST_CIPHER);
 	} else {
 		set_val = 0;
 		/* Reset to none */
 		HDD_SET_BIT(set_val, WLAN_CRYPTO_CIPHER_NONE);
 		wlan_crypto_set_vdev_param(vdev,
-					    WLAN_CRYPTO_PARAM_MCAST_CIPHER,
-					    set_val);
+					   WLAN_CRYPTO_PARAM_MCAST_CIPHER,
+					   set_val);
+	}
+
+	if (req->mfp) {
+		QDF_STATUS status;
+
+		set_val = (uint32_t)hdd_get_rsn_cap_mfp(req->mfp);
+
+		status = wlan_crypto_set_vdev_param(
+						vdev,
+						WLAN_CRYPTO_PARAM_ORIG_RSN_CAP,
+						set_val);
+		if (QDF_IS_STATUS_ERROR(status))
+			hdd_debug("Failed to set original RSN caps %d to crypto",
+				  set_val);
+	} else {
+		set_val = 0;
+		/* Reset to none */
+		wlan_crypto_set_vdev_param(vdev, WLAN_CRYPTO_PARAM_ORIG_RSN_CAP,
+					   set_val);
 	}
 
 	hdd_populate_crypto_auth_type(vdev, req);
@@ -21036,7 +21134,10 @@ static void hdd_set_wapi_crypto_key_mgmt_param(struct hdd_adapter *adapter)
 	if (adapter->wapi_info.wapi_auth_mode == WAPI_AUTH_MODE_CERT)
 		HDD_SET_BIT(set_val, WLAN_CRYPTO_KEY_MGMT_WAPI_CERT);
 
+	/* Set AKM and original AKM type */
 	wlan_crypto_set_vdev_param(vdev, WLAN_CRYPTO_PARAM_KEY_MGMT, set_val);
+	wlan_crypto_set_vdev_param(vdev, WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT,
+				   set_val);
 
 	set_val = 0;
 	HDD_SET_BIT(set_val, WLAN_CRYPTO_CIPHER_WAPI_SMS4);
@@ -21886,13 +21987,18 @@ static inline void hdd_dump_connect_req(struct hdd_adapter *adapter,
 					struct cfg80211_connect_params *req)
 {
 	uint32_t i;
+	uint32_t num_akm_suites;
+	uint32_t *akm_suites;
+
+	num_akm_suites = hdd_get_num_akm_suites(req);
+	akm_suites = hdd_get_akm_suites(req);
 
 	hdd_nofl_debug("cfg80211_connect req for %s(vdevid-%d): mode %d freq %d SSID %.*s auth type %d WPA ver %d n_akm %d n_cipher %d grp_cipher %x mfp %d freq hint %d",
 		       ndev->name, adapter->vdev_id, adapter->device_mode,
 		       req->channel ? req->channel->center_freq : 0,
 		       (int)req->ssid_len, req->ssid, req->auth_type,
 		       req->crypto.wpa_versions,
-		       req->crypto.n_akm_suites, req->crypto.n_ciphers_pairwise,
+		       num_akm_suites, req->crypto.n_ciphers_pairwise,
 		       req->crypto.cipher_group, req->mfp,
 		       req->channel_hint ? req->channel_hint->center_freq : 0);
 	if (req->bssid)
@@ -21903,8 +22009,8 @@ static inline void hdd_dump_connect_req(struct hdd_adapter *adapter,
 				QDF_MAC_ADDR_REF(req->bssid_hint));
 	hdd_dump_prev_bssid(req);
 
-	for (i = 0; i < req->crypto.n_akm_suites; i++)
-		hdd_nofl_debug("akm[%d] = %x", i, req->crypto.akm_suites[i]);
+	for (i = 0; i < num_akm_suites; i++)
+		hdd_nofl_debug("akm[%d] = %x", i, akm_suites[i]);
 
 	for (i = 0; i < req->crypto.n_ciphers_pairwise; i++)
 		hdd_nofl_debug("cipher_pairwise[%d] = %x", i,
@@ -22435,10 +22541,6 @@ int wlan_hdd_disconnect(struct hdd_adapter *adapter, u16 reason,
 	 */
 	wlan_hdd_cfg80211_indicate_disconnect(adapter, true,
 					      mac_reason, NULL, 0);
-#endif
-
-#ifdef FEATURE_WLAN_DYNAMIC_NSS
-	wlan_hdd_stop_dynamic_nss(adapter);
 #endif
 
 	return ret;

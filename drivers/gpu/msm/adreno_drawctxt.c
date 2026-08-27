@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -40,6 +41,8 @@ void adreno_drawctxt_dump(struct kgsl_device *device,
 {
 	unsigned int queue, start, retire;
 	struct adreno_context *drawctxt = ADRENO_CONTEXT(context);
+	int index, pos;
+	char buf[120];
 
 	kgsl_readtimestamp(device, context, KGSL_TIMESTAMP_QUEUED, &queue);
 	kgsl_readtimestamp(device, context, KGSL_TIMESTAMP_CONSUMED, &start);
@@ -66,8 +69,8 @@ void adreno_drawctxt_dump(struct kgsl_device *device,
 	}
 
 	dev_err(device->dev,
-		"  context[%u]: queue=%u, start=%u, retire=%u\n",
-		context->id, queue,
+		"  context[%u]: queue=%u, submit=%u, start=%u, retire=%u\n",
+		context->id, queue, drawctxt->submitted_timestamp,
 		start, retire);
 
 	if (drawctxt->drawqueue_head != drawctxt->drawqueue_tail) {
@@ -100,6 +103,25 @@ void adreno_drawctxt_dump(struct kgsl_device *device,
 	}
 
 stats:
+	memset(buf, 0, sizeof(buf));
+
+	pos = 0;
+
+	for (index = 0; index < SUBMIT_RETIRE_TICKS_SIZE; index++) {
+		uint64_t msecs;
+		unsigned int usecs;
+
+		if (!drawctxt->submit_retire_ticks[index])
+			continue;
+		msecs = drawctxt->submit_retire_ticks[index] * 10;
+		usecs = do_div(msecs, 192);
+		usecs = do_div(msecs, 1000);
+		pos += scnprintf(buf + pos, sizeof(buf) - pos, "%u.%0u ",
+			(unsigned int)msecs, usecs);
+	}
+	dev_err(device->dev, "  context[%u]: submit times: %s\n",
+		context->id, buf);
+
 	spin_unlock_bh(&drawctxt->lock);
 }
 
@@ -580,8 +602,6 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 	if (drawctxt != NULL && kgsl_context_detached(&drawctxt->base))
 		return -ENOENT;
 
-	trace_adreno_drawctxt_switch(rb, drawctxt);
-
 	/* Get a refcount to the new instance */
 	if (drawctxt) {
 		if (!_kgsl_context_get(&drawctxt->base))
@@ -595,7 +615,7 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 
 	ret = adreno_iommu_set_pt_ctx(rb, new_pt, drawctxt);
 	if (ret)
-		return ret;
+		goto err;
 
 	if (rb->drawctxt_active) {
 		/* Wait for the timestamp to expire */
@@ -605,7 +625,12 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 			kgsl_context_put(&rb->drawctxt_active->base);
 		}
 	}
+	trace_adreno_drawctxt_switch(rb, drawctxt);
 
 	rb->drawctxt_active = drawctxt;
 	return 0;
+err:
+	if (drawctxt)
+		kgsl_context_put(&drawctxt->base);
+	return ret;
 }

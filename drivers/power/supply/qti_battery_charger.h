@@ -79,11 +79,6 @@ enum uvdm_state {
 	USBPD_UVDM_CONNECT,
 };
 
-enum usb_connector_type {
-	USB_CONNECTOR_TYPE_TYPEC,
-	USB_CONNECTOR_TYPE_MICRO_USB,
-};
-
 enum psy_type {
 	PSY_TYPE_BATTERY,
 	PSY_TYPE_USB,
@@ -141,8 +136,6 @@ enum usb_property_id {
 	USB_TEMP,
 	USB_REAL_TYPE,
 	USB_TYPEC_COMPLIANT,
-	USB_SCOPE,
-	USB_CONNECTOR_TYPE,
 	USB_PROP_MAX,
 };
 
@@ -265,7 +258,7 @@ enum xm_property_id {
 	XM_PROP_PD_VERIFED,
 	XM_PROP_PDO2,
 	XM_PROP_UVDM_STATE,
-#if !defined(CONFIG_VENUS_FOR_BUILD) && !defined(CONFIG_REDWOOD_FOR_BUILD)
+#if !defined(CONFIG_VENUS_FOR_BUILD) && !defined(CONFIG_REDWOOD_FOR_BUILD) && !defined(CONFIG_VILI_FOR_BUILD)
 	/* use for MI SMART INTERCHG */
 	XM_PROP_VDM_CMD_SINK_SOC,
 #endif
@@ -323,9 +316,11 @@ enum xm_property_id {
 	XM_PROP_SERVER_RESULT,
 	XM_PROP_ADSP_RESULT,
 #endif
-#if defined(CONFIG_REDWOOD_FOR_BUILD)
+#if (defined(CONFIG_REDWOOD_FOR_BUILD) || defined(CONFIG_VILI_FOR_BUILD))
 	XM_PROP_SHIPMODE_COUNT_RESET,
 	XM_PROP_SPORT_MODE,
+#endif
+#if defined(CONFIG_REDWOOD_FOR_BUILD)
 	XM_PROP_CELL1_VOLT,
 	XM_PROP_CELL2_VOLT,
 	XM_PROP_FG_VENDOR_ID,
@@ -469,7 +464,6 @@ struct battery_chg_dev {
 	struct device			*dev;
 	struct class			battery_class;
 	struct pmic_glink_client	*client;
-	struct typec_role_class		*typec_class;
 	struct mutex			rw_lock;
 	struct completion		ack;
 	struct completion		fw_buf_ack;
@@ -479,8 +473,6 @@ struct battery_chg_dev {
 	u8				*digest;
 	bool				slave_fg_verify_flag;
 	u32				*ss_auth_data;
-	/* extcon for VBUS/ID notification for USB for micro USB */
-	struct extcon_dev		*extcon;
 	u32				*thermal_levels;
 	const char			*wls_fw_name;
 	int				curr_thermal_level;
@@ -507,8 +499,6 @@ struct battery_chg_dev {
 	u32				usb_icl_ua;
 	u32				reverse_chg_flag;
 	u32				hw_version_build;
-	u32				connector_type;
-	u32				usb_prev_mode;
 	bool				restrict_chg_en;
 	bool				shutdown_delay_en;
 	bool				support_wireless_charge;

@@ -71,14 +71,6 @@
 #define MSR_SPEED		(1<<3)
 #define MSR_LINK		(1<<2)
 
-/* USB endpoints */
-enum rtl8150_usb_ep {
-	RTL8150_USB_EP_CONTROL = 0,
-	RTL8150_USB_EP_BULK_IN = 1,
-	RTL8150_USB_EP_BULK_OUT = 2,
-	RTL8150_USB_EP_INT_IN = 3,
-};
-
 /* Interrupt pipe data */
 #define INT_TSR			0x00
 #define INT_RSR			0x01
@@ -605,9 +597,9 @@ static void free_skb_pool(rtl8150_t *dev)
 		dev_kfree_skb(dev->rx_skb_pool[i]);
 }
 
-static void rx_fixup(struct tasklet_struct *t)
+static void rx_fixup(unsigned long data)
 {
-	struct rtl8150 *dev = from_tasklet(dev, t, tl);
+	struct rtl8150 *dev = (struct rtl8150 *)data;
 	struct sk_buff *skb;
 	int status;
 
@@ -703,10 +695,11 @@ static netdev_tx_t rtl8150_start_xmit(struct sk_buff *skb,
 					    struct net_device *netdev)
 {
 	rtl8150_t *dev = netdev_priv(netdev);
-	int count, res;
+	int res;
+	unsigned int count;
 
 	/* pad the frame and ensure terminating USB packet, datasheet 9.2.3 */
-	count = max(skb->len, ETH_ZLEN);
+	count = max_t(unsigned int, skb->len, ETH_ZLEN);
 	if (count % 64 == 0)
 		count++;
 	if (skb_padto(skb, count)) {
@@ -899,13 +892,6 @@ static int rtl8150_probe(struct usb_interface *intf,
 	struct usb_device *udev = interface_to_usbdev(intf);
 	rtl8150_t *dev;
 	struct net_device *netdev;
-	static const u8 bulk_ep_addr[] = {
-		RTL8150_USB_EP_BULK_IN | USB_DIR_IN,
-		RTL8150_USB_EP_BULK_OUT | USB_DIR_OUT,
-		0};
-	static const u8 int_ep_addr[] = {
-		RTL8150_USB_EP_INT_IN | USB_DIR_IN,
-		0};
 
 	netdev = alloc_etherdev(sizeof(rtl8150_t));
 	if (!netdev)
@@ -919,14 +905,7 @@ static int rtl8150_probe(struct usb_interface *intf,
 		return -ENOMEM;
 	}
 
-	/* Verify that all required endpoints are present */
-	if (!usb_check_bulk_endpoints(intf, bulk_ep_addr) ||
-	    !usb_check_int_endpoints(intf, int_ep_addr)) {
-		dev_err(&intf->dev, "couldn't find required endpoints\n");
-		goto out;
-	}
-
-	tasklet_setup(&dev->tl, rx_fixup);
+	tasklet_init(&dev->tl, rx_fixup, (unsigned long)dev);
 	spin_lock_init(&dev->rx_pool_lock);
 
 	dev->udev = udev;

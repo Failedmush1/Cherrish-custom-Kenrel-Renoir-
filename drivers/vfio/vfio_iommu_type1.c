@@ -278,11 +278,11 @@ static int vfio_lock_acct(struct vfio_dma *dma, long npage, bool async)
 	if (!mm)
 		return -ESRCH; /* process exited */
 
-	ret = mmap_write_lock_killable(mm);
+	ret = down_write_killable(&mm->mmap_sem);
 	if (!ret) {
 		ret = __account_locked_vm(mm, abs(npage), npage > 0, dma->task,
 					  dma->lock_cap);
-		mmap_write_unlock(mm);
+		up_write(&mm->mmap_sem);
 	}
 
 	if (async)
@@ -384,7 +384,7 @@ static int vaddr_get_pfn(struct mm_struct *mm, unsigned long vaddr,
 	if (prot & IOMMU_WRITE)
 		flags |= FOLL_WRITE;
 
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 	if (mm == current->mm) {
 		ret = get_user_pages(vaddr, 1, flags | FOLL_LONGTERM, page,
 				     vmas);
@@ -403,14 +403,14 @@ static int vaddr_get_pfn(struct mm_struct *mm, unsigned long vaddr,
 			put_page(page[0]);
 		}
 	}
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 
 	if (ret == 1) {
 		*pfn = page_to_pfn(page[0]);
 		return 0;
 	}
 
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 
 	vaddr = untagged_addr(vaddr);
 
@@ -426,7 +426,7 @@ retry:
 			ret = -EFAULT;
 	}
 
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 	return ret;
 }
 

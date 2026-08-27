@@ -136,7 +136,7 @@ static void get_full_task_comm(struct task_entry *task_entry,
 
 	/* next the executable file name */
 	if (mm) {
-		mmap_read_lock(mm);
+		down_read(&mm->mmap_sem);
 		if (mm->exe_file) {
 			char *pathname = d_path(&mm->exe_file->f_path, buf,
 					unused_len);
@@ -149,7 +149,7 @@ static void get_full_task_comm(struct task_entry *task_entry,
 				unused_len--;
 			}
 		}
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 	}
 	unused_len -= len;
 
