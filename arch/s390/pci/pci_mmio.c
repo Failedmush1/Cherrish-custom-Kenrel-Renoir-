@@ -125,7 +125,7 @@ static long get_pfn(unsigned long user_addr, unsigned long access,
 	struct vm_area_struct *vma;
 	long ret;
 
-	mmap_read_lock(current->mm);
+	down_read(&current->mm->mmap_sem);
 	ret = -EINVAL;
 	vma = find_vma(current->mm, user_addr);
 	if (!vma || user_addr < vma->vm_start)
@@ -135,7 +135,7 @@ static long get_pfn(unsigned long user_addr, unsigned long access,
 		goto out;
 	ret = follow_pfn(vma, user_addr, pfn);
 out:
-	mmap_read_unlock(current->mm);
+	up_read(&current->mm->mmap_sem);
 	return ret;
 }
 

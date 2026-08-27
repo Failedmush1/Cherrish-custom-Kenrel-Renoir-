@@ -10,8 +10,6 @@
 #include <linux/page_ref.h>
 #include <linux/list.h>
 #include <linux/kref.h>
-#include <linux/gfp.h>
-
 #include <asm/pgtable.h>
 #include <linux/userfaultfd_k.h>
 
@@ -64,14 +62,13 @@ struct hugepage_subpool *hugepage_new_subpool(struct hstate *h, long max_hpages,
 void hugepage_put_subpool(struct hugepage_subpool *spool);
 
 void reset_vma_resv_huge_pages(struct vm_area_struct *vma);
-int hugetlb_sysctl_handler(struct ctl_table *, int, void __user *, size_t *, loff_t *);
-int hugetlb_overcommit_handler(struct ctl_table *, int, void __user *, size_t *, loff_t *);
-int hugetlb_treat_movable_handler(struct ctl_table *, int, void __user *, size_t *, loff_t *);
-
-#ifdef CONFIG_NUMA
-int hugetlb_mempolicy_sysctl_handler(struct ctl_table *, int,
-					void __user *, size_t *, loff_t *);
-#endif
+int hugetlb_sysctl_handler(struct ctl_table *, int, void *, size_t *, loff_t *);
+int hugetlb_overcommit_handler(struct ctl_table *, int, void *, size_t *,
+		loff_t *);
+int hugetlb_treat_movable_handler(struct ctl_table *, int, void *, size_t *,
+		loff_t *);
+int hugetlb_mempolicy_sysctl_handler(struct ctl_table *, int, void *, size_t *,
+		loff_t *);
 
 int copy_hugetlb_page_range(struct mm_struct *, struct mm_struct *, struct vm_area_struct *);
 long follow_hugetlb_page(struct mm_struct *, struct vm_area_struct *,
@@ -372,10 +369,13 @@ struct huge_bootmem_page {
 
 struct page *alloc_huge_page(struct vm_area_struct *vma,
 				unsigned long addr, int avoid_reserve);
+struct page *alloc_huge_page_node(struct hstate *h, int nid);
 struct page *alloc_huge_page_nodemask(struct hstate *h, int preferred_nid,
-				nodemask_t *nmask, gfp_t gfp_mask);
+				nodemask_t *nmask);
 struct page *alloc_huge_page_vma(struct hstate *h, struct vm_area_struct *vma,
 				unsigned long address);
+struct page *alloc_migrate_huge_page(struct hstate *h, gfp_t gfp_mask,
+				     int nid, nodemask_t *nmask);
 int huge_add_to_page_cache(struct page *page, struct address_space *mapping,
 			pgoff_t idx);
 
@@ -535,27 +535,6 @@ static inline bool hugepage_movable_supported(struct hstate *h)
 	return true;
 }
 
-/* Movability of hugepages depends on migration support. */
-static inline gfp_t htlb_alloc_mask(struct hstate *h)
-{
-	if (hugepage_movable_supported(h))
-		return GFP_HIGHUSER_MOVABLE;
-	else
-		return GFP_HIGHUSER;
-}
-
-static inline gfp_t htlb_modify_alloc_mask(struct hstate *h, gfp_t gfp_mask)
-{
-	gfp_t modified_mask = htlb_alloc_mask(h);
-
-	/* Some callers might want to enforce node */
-	modified_mask |= (gfp_mask & __GFP_THISNODE);
-
-	modified_mask |= (gfp_mask & __GFP_NOWARN);
-
-	return modified_mask;
-}
-
 static inline spinlock_t *huge_pte_lockptr(struct hstate *h,
 					   struct mm_struct *mm, pte_t *pte)
 {
@@ -630,9 +609,13 @@ static inline struct page *alloc_huge_page(struct vm_area_struct *vma,
 	return NULL;
 }
 
+static inline struct page *alloc_huge_page_node(struct hstate *h, int nid)
+{
+	return NULL;
+}
+
 static inline struct page *
-alloc_huge_page_nodemask(struct hstate *h, int preferred_nid,
-			nodemask_t *nmask, gfp_t gfp_mask)
+alloc_huge_page_nodemask(struct hstate *h, int preferred_nid, nodemask_t *nmask)
 {
 	return NULL;
 }
@@ -740,16 +723,6 @@ static inline bool hugepage_movable_supported(struct hstate *h)
 	return false;
 }
 
-static inline gfp_t htlb_alloc_mask(struct hstate *h)
-{
-	return 0;
-}
-
-static inline gfp_t htlb_modify_alloc_mask(struct hstate *h, gfp_t gfp_mask)
-{
-	return 0;
-}
-
 static inline spinlock_t *huge_pte_lockptr(struct hstate *h,
 					   struct mm_struct *mm, pte_t *pte)
 {
@@ -784,6 +757,16 @@ static inline spinlock_t *huge_pte_lock(struct hstate *h,
 	return ptl;
 }
 
+bool want_pmd_share(struct vm_area_struct *vma, unsigned long addr);
+
+#ifndef __HAVE_ARCH_FLUSH_HUGETLB_TLB_RANGE
+/*
+ * ARCHes with special requirements for evicting HUGETLB backing TLB entries can
+ * implement this.
+ */
+#define flush_hugetlb_tlb_range(vma, addr, end) flush_tlb_range(vma, addr, end)
+#endif
+
 #ifdef CONFIG_ARCH_WANT_HUGE_PMD_SHARE
 static inline bool hugetlb_pmd_shared(pte_t *pte)
 {
@@ -794,16 +777,6 @@ static inline bool hugetlb_pmd_shared(pte_t *pte)
 {
 	return false;
 }
-#endif
-
-bool want_pmd_share(struct vm_area_struct *vma, unsigned long addr);
-
-#ifndef __HAVE_ARCH_FLUSH_HUGETLB_TLB_RANGE
-/*
- * ARCHes with special requirements for evicting HUGETLB backing TLB entries can
- * implement this.
- */
-#define flush_hugetlb_tlb_range(vma, addr, end)	flush_tlb_range(vma, addr, end)
 #endif
 
 #endif /* _LINUX_HUGETLB_H */

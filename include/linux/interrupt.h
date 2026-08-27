@@ -309,46 +309,7 @@ extern int irq_force_affinity(unsigned int irq, const struct cpumask *cpumask);
 extern int irq_can_set_affinity(unsigned int irq);
 extern int irq_select_affinity(unsigned int irq);
 
-extern int __irq_apply_affinity_hint(unsigned int irq, const struct cpumask *m,
-				     bool setaffinity);
-
-/**
- * irq_update_affinity_hint - Update the affinity hint
- * @irq:	Interrupt to update
- * @m:		cpumask pointer (NULL to clear the hint)
- *
- * Updates the affinity hint, but does not change the affinity of the interrupt.
- */
-static inline int
-irq_update_affinity_hint(unsigned int irq, const struct cpumask *m)
-{
-	return __irq_apply_affinity_hint(irq, m, false);
-}
-
-/**
- * irq_set_affinity_and_hint - Update the affinity hint and apply the provided
- *			     cpumask to the interrupt
- * @irq:	Interrupt to update
- * @m:		cpumask pointer (NULL to clear the hint)
- *
- * Updates the affinity hint and if @m is not NULL it applies it as the
- * affinity of that interrupt.
- */
-static inline int
-irq_set_affinity_and_hint(unsigned int irq, const struct cpumask *m)
-{
-	return __irq_apply_affinity_hint(irq, m, true);
-}
-
-/*
- * Deprecated. Use irq_update_affinity_hint() or irq_set_affinity_and_hint()
- * instead.
- */
-static inline int irq_set_affinity_hint(unsigned int irq, const struct cpumask *m)
-{
-	return irq_set_affinity_and_hint(irq, m);
-}
-
+extern int irq_set_affinity_hint(unsigned int irq, const struct cpumask *m);
 extern int irq_update_affinity_desc(unsigned int irq,
 				    struct irq_affinity_desc *affinity);
 
@@ -379,18 +340,6 @@ static inline int irq_can_set_affinity(unsigned int irq)
 }
 
 static inline int irq_select_affinity(unsigned int irq)  { return 0; }
-
-static inline int irq_update_affinity_hint(unsigned int irq,
-					   const struct cpumask *m)
-{
-	return -EINVAL;
-}
-
-static inline int irq_set_affinity_and_hint(unsigned int irq,
-					    const struct cpumask *m)
-{
-	return -EINVAL;
-}
 
 static inline int irq_set_affinity_hint(unsigned int irq,
 					const struct cpumask *m)
@@ -610,9 +559,6 @@ static inline struct task_struct *this_cpu_ksoftirqd(void)
 
 /* Tasklets --- multithreaded analogue of BHs.
 
-   This API is deprecated. Please consider using threaded IRQs instead:
-   https://lore.kernel.org/lkml/20200716081538.2sivhkj4hcyrusem@linutronix.de
-
    Main feature differing them of generic softirqs: tasklet
    is running only on one CPU simultaneously.
 
@@ -636,30 +582,9 @@ struct tasklet_struct
 	struct tasklet_struct *next;
 	unsigned long state;
 	atomic_t count;
-	bool use_callback;
-	union {
-		void (*func)(unsigned long data);
-		void (*callback)(struct tasklet_struct *t);
-	};
+	void (*func)(unsigned long);
 	unsigned long data;
 };
-
-#define DECLARE_TASKLET(name, _callback)		\
-struct tasklet_struct name = {				\
-	.count = ATOMIC_INIT(0),			\
-	.callback = _callback,				\
-	.use_callback = true,				\
-}
-
-#define DECLARE_TASKLET_DISABLED(name, _callback)	\
-struct tasklet_struct name = {				\
-	.count = ATOMIC_INIT(1),			\
-	.callback = _callback,				\
-	.use_callback = true,				\
-}
-
-#define from_tasklet(var, callback_tasklet, tasklet_fieldname)	\
-	container_of(callback_tasklet, typeof(*var), tasklet_fieldname)
 
 #define DECLARE_TASKLET_OLD(name, _func)		\
 struct tasklet_struct name = {				\
@@ -740,8 +665,6 @@ extern void tasklet_kill(struct tasklet_struct *t);
 extern void tasklet_kill_immediate(struct tasklet_struct *t, unsigned int cpu);
 extern void tasklet_init(struct tasklet_struct *t,
 			 void (*func)(unsigned long), unsigned long data);
-extern void tasklet_setup(struct tasklet_struct *t,
-			  void (*callback)(struct tasklet_struct *));
 
 /*
  * Autoprobing for irqs:

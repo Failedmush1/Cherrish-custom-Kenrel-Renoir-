@@ -291,7 +291,13 @@ config LZ4_COMPRESS
 config LZ4HC_COMPRESS
 	tristate
 
+config LZ4KD_COMPRESS
+	tristate
+
 config LZ4_DECOMPRESS
+	tristate
+
+config LZ4KD_DECOMPRESS
 	tristate
 
 config ZSTD_COMPRESS
@@ -299,10 +305,6 @@ config ZSTD_COMPRESS
 	tristate
 
 config ZSTD_DECOMPRESS
-	select XXHASH
-	tristate
-
-config ZSTD_COMMON
 	select XXHASH
 	tristate
 
@@ -334,10 +336,6 @@ config DECOMPRESS_LZ4
 	select LZ4_DECOMPRESS
 	tristate
 
-config DECOMPRESS_ZSTD
-	select ZSTD_DECOMPRESS
-	tristate
-
 #
 # Generic allocator support is selected if needed
 #
@@ -349,7 +347,7 @@ config GENERIC_ALLOCATOR
 #
 config REED_SOLOMON
 	tristate
-	
+
 config REED_SOLOMON_ENC8
 	bool
 

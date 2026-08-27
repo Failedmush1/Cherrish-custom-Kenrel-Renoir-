@@ -70,8 +70,8 @@ ia64_do_page_fault (unsigned long address, unsigned long isr, struct pt_regs *re
 	mask = ((((isr >> IA64_ISR_X_BIT) & 1UL) << VM_EXEC_BIT)
 		| (((isr >> IA64_ISR_W_BIT) & 1UL) << VM_WRITE_BIT));
 
-	/* mmap_lock is performance critical.... */
-	prefetchw(&mm->mmap_lock);
+	/* mmap_sem is performance critical.... */
+	prefetchw(&mm->mmap_sem);
 
 	/*
 	 * If we're in an interrupt or have no user context, we must not take the fault..
@@ -102,7 +102,7 @@ ia64_do_page_fault (unsigned long address, unsigned long isr, struct pt_regs *re
 	if (mask & VM_WRITE)
 		flags |= FAULT_FLAG_WRITE;
 retry:
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 
 	vma = find_vma_prev(mm, address, &prev_vma);
 	if (!vma && !prev_vma )
@@ -178,7 +178,7 @@ retry:
 		}
 	}
 
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 	return;
 
   check_expansion:
@@ -209,7 +209,7 @@ retry:
 	goto good_area;
 
   bad_area:
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 #ifdef CONFIG_VIRTUAL_MEM_MAP
   bad_area_no_up:
 #endif
@@ -275,7 +275,7 @@ retry:
 	return;
 
   out_of_memory:
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 	if (!user_mode(regs))
 		goto no_context;
 	pagefault_out_of_memory();

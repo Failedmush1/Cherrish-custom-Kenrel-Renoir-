@@ -341,7 +341,7 @@ static void lockdep_acquire_cpus_lock(void)
 
 static void lockdep_release_cpus_lock(void)
 {
-	rwsem_release(&cpu_hotplug_lock.rw_sem.dep_map, _THIS_IP_);
+	rwsem_release(&cpu_hotplug_lock.rw_sem.dep_map, 1, _THIS_IP_);
 }
 
 /*
@@ -1627,12 +1627,6 @@ static struct cpuhp_step cpuhp_hp_states[] = {
 		.startup.single		= NULL,
 		.teardown.single	= smpcfd_dying_cpu,
 	},
-	[CPUHP_AP_HRTIMERS_DYING] = {
-		.name			= "hrtimers:dying",
-		.startup.single		= hrtimers_cpu_starting,
-		.teardown.single	= hrtimers_cpu_dying,
-	},
-
 	/* Entry state on starting. Interrupts enabled from here on. Transient
 	 * state for synchronsization */
 	[CPUHP_AP_ONLINE] = {

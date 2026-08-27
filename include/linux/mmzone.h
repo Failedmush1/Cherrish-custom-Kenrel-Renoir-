@@ -109,7 +109,7 @@ struct free_area {
 static inline void add_to_free_area(struct page *page, struct free_area *area,
 			     int migratetype)
 {
-	list_add(&page->buddy_list, &area->free_list[migratetype]);
+	list_add(&page->lru, &area->free_list[migratetype]);
 	area->nr_free++;
 }
 
@@ -117,7 +117,7 @@ static inline void add_to_free_area(struct page *page, struct free_area *area,
 static inline void add_to_free_area_tail(struct page *page, struct free_area *area,
 				  int migratetype)
 {
-	list_add_tail(&page->buddy_list, &area->free_list[migratetype]);
+	list_add_tail(&page->lru, &area->free_list[migratetype]);
 	area->nr_free++;
 }
 
@@ -137,7 +137,7 @@ static inline void add_to_free_area_random(struct page *page,
 static inline void move_to_free_area(struct page *page, struct free_area *area,
 			     int migratetype)
 {
-	list_move(&page->buddy_list, &area->free_list[migratetype]);
+	list_move(&page->lru, &area->free_list[migratetype]);
 }
 
 static inline struct page *get_page_from_free_area(struct free_area *area,
@@ -150,7 +150,7 @@ static inline struct page *get_page_from_free_area(struct free_area *area,
 static inline void del_page_from_free_area(struct page *page,
 		struct free_area *area)
 {
-	list_del(&page->buddy_list);
+	list_del(&page->lru);
 	__ClearPageBuddy(page);
 	set_page_private(page, 0);
 	area->nr_free--;
@@ -283,37 +283,36 @@ enum lru_list {
 
 #define for_each_evictable_lru(lru) for (lru = 0; lru <= LRU_ACTIVE_FILE; lru++)
 
-static inline bool is_file_lru(enum lru_list lru)
+static inline int is_file_lru(enum lru_list lru)
 {
 	return (lru == LRU_INACTIVE_FILE || lru == LRU_ACTIVE_FILE);
 }
 
-static inline bool is_active_lru(enum lru_list lru)
+static inline int is_active_lru(enum lru_list lru)
 {
 	return (lru == LRU_ACTIVE_ANON || lru == LRU_ACTIVE_FILE);
 }
 
-enum lruvec_flags {
-	LRUVEC_CONGESTED,		/* lruvec has many dirty pages
-					 * backed by a congested BDI
-					 */
+struct zone_reclaim_stat {
+	/*
+	 * The pageout code in vmscan.c keeps track of how many of the
+	 * mem/swap backed and file backed pages are referenced.
+	 * The higher the rotated/scanned ratio, the more valuable
+	 * that cache is.
+	 *
+	 * The anon LRU stats live in [0], file LRU stats in [1]
+	 */
+	unsigned long		recent_rotated[2];
+	unsigned long		recent_scanned[2];
 };
 
 struct lruvec {
 	struct list_head		lists[NR_LRU_LISTS];
-	/*
-	 * These track the cost of reclaiming one LRU - file or anon -
-	 * over the other. As the observed cost of reclaiming one LRU
-	 * increases, the reclaim scan balance tips toward the other.
-	 */
-	unsigned long			anon_cost;
-	unsigned long			file_cost;
+	struct zone_reclaim_stat	reclaim_stat;
 	/* Evictions & activations on the inactive file list */
 	atomic_long_t			inactive_age;
 	/* Refaults at the time of last reclaim cycle */
 	unsigned long			refaults;
-	/* Various lruvec state flags (enum lruvec_flags) */
-	unsigned long			flags;
 #ifdef CONFIG_MEMCG
 	struct pglist_data *pgdat;
 #endif
@@ -342,7 +341,6 @@ enum zone_watermarks {
 #define wmark_pages(z, i) (z->_watermark[i] + z->watermark_boost)
 
 struct per_cpu_pages {
-	spinlock_t lock;	/* Protects lists field */
 	int count;		/* number of pages in the list */
 	int high;		/* high watermark, emptying needed */
 	int batch;		/* chunk size for buddy add/remove */
@@ -586,6 +584,9 @@ struct zone {
 } ____cacheline_internodealigned_in_smp;
 
 enum pgdat_flags {
+	PGDAT_CONGESTED,		/* pgdat has many dirty pages backed by
+					 * a congested BDI
+					 */
 	PGDAT_DIRTY,			/* reclaim scanning has recently found
 					 * many dirty file pages at the tail
 					 * of the LRU.
@@ -795,13 +796,7 @@ typedef struct pglist_data {
 #endif
 
 	/* Fields commonly accessed by the page reclaim scanner */
-
-	/*
-	 * NOTE: THIS IS UNUSED IF MEMCG IS ENABLED.
-	 *
-	 * Use mem_cgroup_lruvec() to look up lruvecs.
-	 */
-	struct lruvec		__lruvec;
+	struct lruvec		lruvec;
 
 	unsigned long		flags;
 
@@ -823,6 +818,11 @@ typedef struct pglist_data {
 
 #define node_start_pfn(nid)	(NODE_DATA(nid)->node_start_pfn)
 #define node_end_pfn(nid) pgdat_end_pfn(NODE_DATA(nid))
+
+static inline struct lruvec *node_lruvec(struct pglist_data *pgdat)
+{
+	return &pgdat->lruvec;
+}
 
 static inline unsigned long pgdat_end_pfn(pg_data_t *pgdat)
 {
@@ -866,7 +866,7 @@ static inline struct pglist_data *lruvec_pgdat(struct lruvec *lruvec)
 #ifdef CONFIG_MEMCG
 	return lruvec->pgdat;
 #else
-	return container_of(lruvec, struct pglist_data, __lruvec);
+	return container_of(lruvec, struct pglist_data, lruvec);
 #endif
 }
 
@@ -981,26 +981,26 @@ static inline int is_highmem(struct zone *zone)
 /* These two functions are used to setup the per zone pages min values */
 struct ctl_table;
 int kswapd_threads_sysctl_handler(struct ctl_table *table, int write,
-					void __user *buffer, size_t *length,
+					void *buffer, size_t *length,
 					loff_t *pos);
 int min_free_kbytes_sysctl_handler(struct ctl_table *, int,
-					void __user *, size_t *, loff_t *);
+					void *, size_t *, loff_t *);
 int watermark_boost_factor_sysctl_handler(struct ctl_table *, int,
-					void __user *, size_t *, loff_t *);
+					void *, size_t *, loff_t *);
 int watermark_scale_factor_sysctl_handler(struct ctl_table *, int,
-					void __user *, size_t *, loff_t *);
+					void *, size_t *, loff_t *);
 extern int sysctl_lowmem_reserve_ratio[MAX_NR_ZONES];
-int lowmem_reserve_ratio_sysctl_handler(struct ctl_table *, int,
-					void __user *, size_t *, loff_t *);
+int lowmem_reserve_ratio_sysctl_handler(struct ctl_table *, int, void *,
+		size_t *, loff_t *);
 int percpu_pagelist_fraction_sysctl_handler(struct ctl_table *, int,
-					void __user *, size_t *, loff_t *);
+		void *, size_t *, loff_t *);
 int sysctl_min_unmapped_ratio_sysctl_handler(struct ctl_table *, int,
-			void __user *, size_t *, loff_t *);
+		void *, size_t *, loff_t *);
 int sysctl_min_slab_ratio_sysctl_handler(struct ctl_table *, int,
-			void __user *, size_t *, loff_t *);
+			void *, size_t *, loff_t *);
 
-extern int numa_zonelist_order_handler(struct ctl_table *, int,
-			void __user *, size_t *, loff_t *);
+int numa_zonelist_order_handler(struct ctl_table *, int,
+			void *, size_t *, loff_t *);
 extern char numa_zonelist_order[];
 #define NUMA_ZONELIST_ORDER_LEN	16
 

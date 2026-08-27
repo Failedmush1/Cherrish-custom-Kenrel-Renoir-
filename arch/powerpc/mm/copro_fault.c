@@ -33,7 +33,7 @@ int copro_handle_mm_fault(struct mm_struct *mm, unsigned long ea,
 	if (mm->pgd == NULL)
 		return -EFAULT;
 
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 	ret = -EFAULT;
 	vma = find_vma(mm, ea);
 	if (!vma)
@@ -82,7 +82,7 @@ int copro_handle_mm_fault(struct mm_struct *mm, unsigned long ea,
 		current->min_flt++;
 
 out_unlock:
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(copro_handle_mm_fault);

@@ -242,7 +242,6 @@ quiet_cmd_gzip = GZIP    $@
 # DTC
 # ---------------------------------------------------------------------------
 DTC ?= $(objtree)/scripts/dtc/dtc
-DTC_FLAGS += -Wno-interrupt_provider
 
 # Silence all DTC warnings by default
 DTC_FLAGS += -q
@@ -264,8 +263,7 @@ endif
 
 ifneq ($(findstring 2,$(KBUILD_EXTRA_WARN)),)
 DTC_FLAGS += -Wnode_name_chars_strict \
-	-Wproperty_name_chars_strict \
-	-Winterrupt_provider
+	-Wproperty_name_chars_strict
 endif
 
 DTC_FLAGS += $(DTC_FLAGS_$(basetarget))
@@ -322,13 +320,6 @@ $(obj)/%.dt.yaml: $(src)/%.dts $(DTC) $(DT_TMP_SCHEMA) FORCE
 
 dtc-tmp = $(subst $(comma),_,$(dot-target).dts.tmp)
 
-# mkdtimg
-#----------------------------------------------------------------------------
-quiet_cmd_mkdtimg = DTBOIMG $@
-cmd_mkdtimg = python $(srctree)/scripts/mkdtboimg.py create $@ --page_size=4096 $(filter-out FORCE,$^)
-
-# cat
-# ---------------------------------------------------------------------------
 # Concatentate multiple files together
 quiet_cmd_cat = CAT $@
 cmd_cat = (cat $(filter-out FORCE,$^) > $@) || (rm -f $@; false)

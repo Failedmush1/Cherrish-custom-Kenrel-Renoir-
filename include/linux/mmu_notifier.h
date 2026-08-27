@@ -5,7 +5,6 @@
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/mm_types.h>
-#include <linux/mmap_lock.h>
 #include <linux/srcu.h>
 #include <linux/android_kabi.h>
 
@@ -271,9 +270,9 @@ mmu_notifier_get(const struct mmu_notifier_ops *ops, struct mm_struct *mm)
 {
 	struct mmu_notifier *ret;
 
-	mmap_write_lock(mm);
+	down_write(&mm->mmap_sem);
 	ret = mmu_notifier_get_locked(ops, mm);
-	mmap_write_unlock(mm);
+	up_write(&mm->mmap_sem);
 	return ret;
 }
 void mmu_notifier_put(struct mmu_notifier *mn);

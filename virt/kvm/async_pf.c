@@ -74,11 +74,11 @@ static void async_pf_execute(struct work_struct *work)
 	 * mm and might be done in another context, so we must
 	 * access remotely.
 	 */
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 	get_user_pages_remote(NULL, mm, addr, 1, FOLL_WRITE, NULL, NULL,
 			&locked);
 	if (locked)
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 
 	kvm_async_page_present_sync(vcpu, apf);
 

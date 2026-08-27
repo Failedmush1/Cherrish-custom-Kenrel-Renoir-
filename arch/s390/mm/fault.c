@@ -105,7 +105,7 @@ static int bad_address(void *p)
 {
 	unsigned long dummy;
 
-	return probe_kernel_address((unsigned long *)p, dummy);
+	return get_kernel_nofault(dummy, (unsigned long *)p);
 }
 
 static void dump_pagetable(unsigned long asce, unsigned long address)
@@ -436,7 +436,7 @@ static inline vm_fault_t do_exception(struct pt_regs *regs, int access)
 		access = VM_WRITE;
 	if (access == VM_WRITE)
 		flags |= FAULT_FLAG_WRITE;
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 
 	gmap = NULL;
 	if (IS_ENABLED(CONFIG_PGSTE) && type == GMAP_FAULT) {
@@ -517,7 +517,7 @@ retry:
 			}
 			flags &= ~FAULT_FLAG_RETRY_NOWAIT;
 			flags |= FAULT_FLAG_TRIED;
-			mmap_read_lock(mm);
+			down_read(&mm->mmap_sem);
 			goto retry;
 		}
 	}
@@ -535,7 +535,7 @@ retry:
 	}
 	fault = 0;
 out_up:
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 out:
 	return fault;
 }

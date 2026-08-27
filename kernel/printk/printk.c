@@ -177,7 +177,7 @@ __setup("printk.devkmsg=", control_devkmsg);
 char devkmsg_log_str[DEVKMSG_STR_MAX_SIZE] = "ratelimit";
 
 int devkmsg_sysctl_set_loglvl(struct ctl_table *table, int write,
-			      void __user *buffer, size_t *lenp, loff_t *ppos)
+			      void *buffer, size_t *lenp, loff_t *ppos)
 {
 	char old_str[DEVKMSG_STR_MAX_SIZE];
 	unsigned int old;
@@ -252,7 +252,7 @@ static void __up_console_sem(unsigned long ip)
 {
 	unsigned long flags;
 
-	mutex_release(&console_lock_dep_map, ip);
+	mutex_release(&console_lock_dep_map, 1, ip);
 
 	printk_safe_enter_irqsave(flags);
 	up(&console_sem);
@@ -451,7 +451,7 @@ static u32 clear_idx;
 #else
 #define PREFIX_MAX		32
 #endif
-#define LOG_LINE_MAX		(4096 - PREFIX_MAX)
+#define LOG_LINE_MAX		(1024 - PREFIX_MAX)
 
 #define LOG_LEVEL(v)		((v) & 0x07)
 #define LOG_FACILITY(v)		((v) >> 3 & 0xff)
@@ -1755,20 +1755,20 @@ static int console_lock_spinning_disable_and_check(void)
 	raw_spin_unlock(&console_owner_lock);
 
 	if (!waiter) {
-		spin_release(&console_owner_dep_map, _THIS_IP_);
+		spin_release(&console_owner_dep_map, 1, _THIS_IP_);
 		return 0;
 	}
 
 	/* The waiter is now free to continue */
 	WRITE_ONCE(console_waiter, false);
 
-	spin_release(&console_owner_dep_map, _THIS_IP_);
+	spin_release(&console_owner_dep_map, 1, _THIS_IP_);
 
 	/*
 	 * Hand off console_lock to waiter. The waiter will perform
 	 * the up(). After this, the waiter is the console_lock owner.
 	 */
-	mutex_release(&console_lock_dep_map, _THIS_IP_);
+	mutex_release(&console_lock_dep_map, 1, _THIS_IP_);
 	return 1;
 }
 
@@ -1822,7 +1822,7 @@ static int console_trylock_spinning(void)
 	/* Owner will clear console_waiter on hand off */
 	while (READ_ONCE(console_waiter))
 		cpu_relax();
-	spin_release(&console_owner_dep_map, _THIS_IP_);
+	spin_release(&console_owner_dep_map, 1, _THIS_IP_);
 
 	printk_safe_exit_irqrestore(flags);
 	/*
@@ -3060,7 +3060,7 @@ static void wake_up_klogd_work_func(struct irq_work *irq_work)
 
 static DEFINE_PER_CPU(struct irq_work, wake_up_klogd_work) = {
 	.func = wake_up_klogd_work_func,
-	.flags = IRQ_WORK_LAZY,
+	.flags = ATOMIC_INIT(IRQ_WORK_LAZY),
 };
 
 void wake_up_klogd(void)

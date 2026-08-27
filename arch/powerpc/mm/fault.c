@@ -108,7 +108,7 @@ static int __bad_area(struct pt_regs *regs, unsigned long address, int si_code)
 	 * Something tried to access memory that isn't in our memory map..
 	 * Fix it, but check if it's kernel or user first..
 	 */
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 
 	return __bad_area_nosemaphore(regs, address, si_code);
 }
@@ -280,12 +280,8 @@ static bool bad_stack_expansion(struct pt_regs *regs, unsigned long address,
 		if ((flags & FAULT_FLAG_WRITE) && (flags & FAULT_FLAG_USER) &&
 		    access_ok(nip, sizeof(*nip))) {
 			unsigned int inst;
-			int res;
 
-			pagefault_disable();
-			res = __get_user_inatomic(inst, nip);
-			pagefault_enable();
-			if (!res)
+			if (!probe_user_read(&inst, nip, sizeof(inst)))
 				return !store_updates_sp(inst);
 			*must_retry = true;
 		}
@@ -517,12 +513,12 @@ static int __do_page_fault(struct pt_regs *regs, unsigned long address,
 	 * source.  If this is invalid we can skip the address space check,
 	 * thus avoiding the deadlock.
 	 */
-	if (unlikely(!mmap_read_trylock(mm))) {
+	if (unlikely(!down_read_trylock(&mm->mmap_sem))) {
 		if (!is_user && !search_exception_tables(regs->nip))
 			return bad_area_nosemaphore(regs, address);
 
 retry:
-		mmap_read_lock(mm);
+		down_read(&mm->mmap_sem);
 	} else {
 		/*
 		 * The above down_read_trylock() might have succeeded in
@@ -546,7 +542,7 @@ retry:
 		if (!must_retry)
 			return bad_area(regs, address);
 
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 		if (fault_in_pages_readable((const char __user *)regs->nip,
 					    sizeof(unsigned int)))
 			return bad_area_nosemaphore(regs, address);
@@ -578,7 +574,7 @@ good_area:
 
 		int pkey = vma_pkey(vma);
 
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 		return bad_key_fault_exception(regs, address, pkey);
 	}
 #endif /* CONFIG_PPC_MEM_KEYS */
@@ -599,7 +595,7 @@ good_area:
 		}
 	}
 
-	mmap_read_unlock(current->mm);
+	up_read(&current->mm->mmap_sem);
 
 	if (unlikely(fault & VM_FAULT_ERROR))
 		return mm_fault_error(regs, address, fault);

@@ -261,7 +261,7 @@ __bad_area(struct pt_regs *regs, unsigned long error_code,
 	 * Something tried to access memory that isn't in our memory map..
 	 * Fix it, but check if it's kernel or user first..
 	 */
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 
 	__bad_area_nosemaphore(regs, error_code, address, si_code);
 }
@@ -285,7 +285,7 @@ do_sigbus(struct pt_regs *regs, unsigned long error_code, unsigned long address)
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
 
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 
 	/* Kernel mode? Handle exceptions or die: */
 	if (!user_mode(regs))
@@ -300,6 +300,7 @@ mm_fault_error(struct pt_regs *regs, unsigned long error_code,
 {
 	/*
 	 * Pagefault was interrupted by SIGKILL. We have no reason to
+	 * continue pagefault.
 	 */
 	if (fault_signal_pending(fault, regs)) {
 		if (!user_mode(regs))
@@ -309,7 +310,7 @@ mm_fault_error(struct pt_regs *regs, unsigned long error_code,
 
 	/* Release mmap_sem first if necessary */
 	if (!(fault & VM_FAULT_RETRY))
-		mmap_read_unlock(current->mm);
+		up_read(&current->mm->mmap_sem);
 
 	if (!(fault & VM_FAULT_ERROR))
 		return 0;
@@ -423,7 +424,7 @@ asmlinkage void __kprobes do_page_fault(struct pt_regs *regs,
 	}
 
 retry:
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 
 	vma = find_vma(mm, address);
 	if (unlikely(!vma)) {
@@ -491,5 +492,5 @@ good_area:
 		}
 	}
 
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 }

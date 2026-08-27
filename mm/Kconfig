@@ -438,6 +438,10 @@ config THP_SWAP
 
 	  For selection by architectures with reasonable THP sizes.
 
+config	TRANSPARENT_HUGE_PAGECACHE
+	def_bool y
+	depends on TRANSPARENT_HUGEPAGE
+
 #
 # UP and nommu archs use km based percpu allocator
 #
@@ -671,18 +675,10 @@ config DEFERRED_STRUCT_PAGE_INIT
 	  lifetime of the system until these kthreads finish the
 	  initialisation.
 
-config PAGE_IDLE_FLAG
-	bool
-	select PAGE_EXTENSION if !64BIT
-	help
-	  This adds PG_idle and PG_young flags to 'struct page'.  PTE Accessed
-	  bit writers can set the state of the bit in the flags so that PTE
-	  Accessed bit readers may avoid disturbance.
-
 config IDLE_PAGE_TRACKING
 	bool "Enable idle page tracking"
 	depends on SYSFS && MMU
-	select PAGE_IDLE_FLAG
+	select PAGE_EXTENSION if !64BIT
 	help
 	  This feature allows to estimate the amount of user pages that have
 	  not been touched during a given period of time. This information can
@@ -770,29 +766,6 @@ config HAVE_USERSPACE_LOW_MEMORY_KILLER
 	  when the OOM killer and userspace memory killer both have the
 	  potential to run).
 
-config ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT
-       def_bool n
-
-config SPECULATIVE_PAGE_FAULT
-       bool "Speculative page faults"
-       default y
-       depends on ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT
-       depends on MMU && SMP
-       depends on QGKI
-       help
-         Try to handle user space page faults without holding the mmap_sem.
-
-	 This should allow better concurrency for massively threaded process
-	 since the page fault handler will not wait for other threads memory
-	 layout change to be done, assuming that this change is done in another
-	 part of the process's memory space. This type of page fault is named
-	 speculative page fault.
-
-	 If the speculative page fault fails because of a concurrency is
-	 detected or because underlying PMD or PTE tables are not yet
-	 allocating, it is failing its processing and a classic page fault
-	 is then tried.
-
 config GUP_BENCHMARK
 	bool "Enable infrastructure for get_user_pages_fast() benchmarking"
 	help
@@ -806,7 +779,7 @@ config GUP_GET_PTE_LOW_HIGH
 
 config READ_ONLY_THP_FOR_FS
 	bool "Read-only THP for filesystems (EXPERIMENTAL)"
-	depends on TRANSPARENT_HUGEPAGE && SHMEM
+	depends on TRANSPARENT_HUGE_PAGECACHE && SHMEM
 
 	help
 	  Allow khugepaged to put read-only file-backed pages in THP.
@@ -854,8 +827,6 @@ config OOM_TASK_PRIORITY_ADJ_LIMIT
 	  With this parameter you can limit the OOM killer to first kill
 	  tasks with an oom_score_adj value above a certain threshold
 	  before considering tasks with a lower oom_score_adj value.
-
-source "mm/damon/Kconfig"
 
 endmenu
 

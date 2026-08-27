@@ -31,7 +31,6 @@ descriptions of data structures and algorithms.
    active_mm
    balance
    cleancache
-   damon/index
    frontswap
    highmem
    hmm

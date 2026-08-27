@@ -1643,7 +1643,7 @@ long do_shmat(int shmid, char __user *shmaddr, int shmflg,
 	if (err)
 		goto out_fput;
 
-	if (mmap_write_lock_killable(current->mm)) {
+	if (down_write_killable(&current->mm->mmap_sem)) {
 		err = -EINTR;
 		goto out_fput;
 	}
@@ -1663,7 +1663,7 @@ long do_shmat(int shmid, char __user *shmaddr, int shmflg,
 	if (IS_ERR_VALUE(addr))
 		err = (long)addr;
 invalid:
-	mmap_write_unlock(current->mm);
+	up_write(&current->mm->mmap_sem);
 	if (populate)
 		mm_populate(addr, populate);
 
@@ -1738,7 +1738,7 @@ long ksys_shmdt(char __user *shmaddr)
 	if (addr & ~PAGE_MASK)
 		return retval;
 
-	if (mmap_write_lock_killable(mm))
+	if (down_write_killable(&mm->mmap_sem))
 		return -EINTR;
 
 	/*
@@ -1826,7 +1826,7 @@ long ksys_shmdt(char __user *shmaddr)
 
 #endif
 
-	mmap_write_unlock(mm);
+	up_write(&mm->mmap_sem);
 	return retval;
 }
 

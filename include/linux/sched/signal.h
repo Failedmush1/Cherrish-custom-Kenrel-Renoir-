@@ -10,8 +10,8 @@
 #include <linux/cred.h>
 #include <linux/refcount.h>
 #include <linux/posix-timers.h>
-#include <linux/mm_types.h>
 #include <linux/android_kabi.h>
+#include <linux/mm_types.h>
 #include <asm/ptrace.h>
 
 /*

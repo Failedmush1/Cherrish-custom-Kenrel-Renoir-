@@ -290,10 +290,10 @@ static int xdp_umem_pin_pages(struct xdp_umem *umem)
 	if (!umem->pgs)
 		return -ENOMEM;
 
-	mmap_read_lock(current->mm);
+	down_read(&current->mm->mmap_sem);
 	npgs = get_user_pages(umem->address, umem->npgs,
 			      gup_flags | FOLL_LONGTERM, &umem->pgs[0], NULL);
-	mmap_read_unlock(current->mm);
+	up_read(&current->mm->mmap_sem);
 
 	if (npgs != umem->npgs) {
 		if (npgs >= 0) {

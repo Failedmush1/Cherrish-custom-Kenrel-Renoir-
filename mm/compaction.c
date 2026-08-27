@@ -986,7 +986,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 		/* Successfully isolated */
 		del_page_from_lru_list(page, lruvec, page_lru(page));
 		inc_node_page_state(page,
-				NR_ISOLATED_ANON + page_is_file_lru(page));
+				NR_ISOLATED_ANON + page_is_file_cache(page));
 
 isolate_success:
 		list_add(&page->lru, &cc->migratepages);
@@ -2227,11 +2227,15 @@ check_drain:
 		 * would succeed.
 		 */
 		if (cc->order > 0 && last_migrated_pfn) {
+			int cpu;
 			unsigned long current_block_start =
 				block_start_pfn(cc->migrate_pfn, cc->order);
 
 			if (last_migrated_pfn < current_block_start) {
-				lru_add_drain_cpu_zone(cc->zone);
+				cpu = get_cpu();
+				lru_add_drain_cpu(cpu);
+				drain_local_pages(cc->zone);
+				put_cpu();
 				/* No more flushing until we migrate again */
 				last_migrated_pfn = 0;
 			}
@@ -2449,7 +2453,7 @@ int sysctl_compact_memory;
  * /proc/sys/vm/compact_memory
  */
 int sysctl_compaction_handler(struct ctl_table *table, int write,
-			void __user *buffer, size_t *length, loff_t *ppos)
+			void *buffer, size_t *length, loff_t *ppos)
 {
 	if (write)
 		compact_nodes();

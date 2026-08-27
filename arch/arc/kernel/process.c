@@ -88,10 +88,10 @@ fault:
 	if (unlikely(ret != -EFAULT))
 		 goto fail;
 
-	mmap_read_lock(current->mm);
+	down_read(&current->mm->mmap_sem);
 	ret = fixup_user_fault(current, current->mm, (unsigned long) uaddr,
 			       FAULT_FLAG_WRITE, NULL);
-	mmap_read_unlock(current->mm);
+	up_read(&current->mm->mmap_sem);
 
 	if (likely(!ret))
 		 goto again;

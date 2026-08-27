@@ -95,7 +95,7 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 				 * it cannot move them all from MIGRATE_ASYNC
 				 * context.
 				 */
-				if (page_is_file_lru(page) && PageDirty(page))
+				if (page_is_file_cache(page) && PageDirty(page))
 					continue;
 
 				/* Avoid TLB flush if possible */
@@ -455,14 +455,12 @@ success:
 	 * vm_flags and vm_page_prot are protected by the mmap_sem
 	 * held in write mode.
 	 */
-	vm_write_begin(vma);
-	WRITE_ONCE(vma->vm_flags, vma_pad_fixup_flags(vma, newflags));
+	vma->vm_flags = vma_pad_fixup_flags(vma, newflags);
 	dirty_accountable = vma_wants_writenotify(vma, vma->vm_page_prot);
 	vma_set_page_prot(vma);
 
 	change_protection(vma, start, end, vma->vm_page_prot,
 			  dirty_accountable, 0);
-	vm_write_end(vma);
 
 	/*
 	 * Private VM_LOCKED VMA becoming writable: trigger COW to avoid major
@@ -515,7 +513,7 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 
 	reqprot = prot;
 
-	if (mmap_write_lock_killable(current->mm))
+	if (down_write_killable(&current->mm->mmap_sem))
 		return -EINTR;
 
 	/*
@@ -605,7 +603,7 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 		prot = reqprot;
 	}
 out:
-	mmap_write_unlock(current->mm);
+	up_write(&current->mm->mmap_sem);
 	return error;
 }
 
@@ -635,7 +633,7 @@ SYSCALL_DEFINE2(pkey_alloc, unsigned long, flags, unsigned long, init_val)
 	if (init_val & ~PKEY_ACCESS_MASK)
 		return -EINVAL;
 
-	mmap_write_lock(current->mm);
+	down_write(&current->mm->mmap_sem);
 	pkey = mm_pkey_alloc(current->mm);
 
 	ret = -ENOSPC;
@@ -649,7 +647,7 @@ SYSCALL_DEFINE2(pkey_alloc, unsigned long, flags, unsigned long, init_val)
 	}
 	ret = pkey;
 out:
-	mmap_write_unlock(current->mm);
+	up_write(&current->mm->mmap_sem);
 	return ret;
 }
 
@@ -657,9 +655,9 @@ SYSCALL_DEFINE1(pkey_free, int, pkey)
 {
 	int ret;
 
-	mmap_write_lock(current->mm);
+	down_write(&current->mm->mmap_sem);
 	ret = mm_pkey_free(current->mm, pkey);
-	mmap_write_unlock(current->mm);
+	up_write(&current->mm->mmap_sem);
 
 	/*
 	 * We could provie warnings or errors if any VMA still

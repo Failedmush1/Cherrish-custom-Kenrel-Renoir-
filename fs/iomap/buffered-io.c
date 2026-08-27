@@ -200,30 +200,24 @@ struct iomap_readpage_ctx {
 	struct list_head	*pages;
 };
 
-static int iomap_read_inline_data(struct inode *inode, struct page *page,
+static void
+iomap_read_inline_data(struct inode *inode, struct page *page,
 		struct iomap *iomap)
 {
-	size_t size = i_size_read(inode) - iomap->offset;
+	size_t size = i_size_read(inode);
 	void *addr;
 
 	if (PageUptodate(page))
-		return 0;
+		return;
 
-	/* inline data must start page aligned in the file */
-	if (WARN_ON_ONCE(offset_in_page(iomap->offset)))
-		return -EIO;
-	if (WARN_ON_ONCE(size > PAGE_SIZE -
-			 offset_in_page(iomap->inline_data)))
-		return -EIO;
-	if (WARN_ON_ONCE(size > iomap->length))
-		return -EIO;
+	BUG_ON(page->index);
+	BUG_ON(size > PAGE_SIZE - offset_in_page(iomap->inline_data));
 
 	addr = kmap_atomic(page);
 	memcpy(addr, iomap->inline_data, size);
 	memset(addr + size, 0, PAGE_SIZE - size);
 	kunmap_atomic(addr);
 	SetPageUptodate(page);
-	return 0;
 }
 
 static loff_t
@@ -239,10 +233,8 @@ iomap_readpage_actor(struct inode *inode, loff_t pos, loff_t length, void *data,
 	sector_t sector;
 
 	if (iomap->type == IOMAP_INLINE) {
-		int ret = iomap_read_inline_data(inode, page, iomap);
-
-		if (ret)
-			return ret;
+		WARN_ON_ONCE(pos);
+		iomap_read_inline_data(inode, page, iomap);
 		return PAGE_SIZE;
 	}
 
@@ -606,15 +598,6 @@ __iomap_write_begin(struct inode *inode, loff_t pos, unsigned len,
 	return status;
 }
 
-static int iomap_write_begin_inline(struct inode *inode,
-		struct page *page, struct iomap *srcmap)
-{
-	/* needs more work for the tailpacking case; disable for now */
-	if (WARN_ON_ONCE(srcmap->offset != 0))
-		return -EIO;
-	return iomap_read_inline_data(inode, page, srcmap);
-}
-
 static int
 iomap_write_begin(struct inode *inode, loff_t pos, unsigned len, unsigned flags,
 		struct page **pagep, struct iomap *iomap)
@@ -642,7 +625,7 @@ iomap_write_begin(struct inode *inode, loff_t pos, unsigned len, unsigned flags,
 	}
 
 	if (iomap->type == IOMAP_INLINE)
-		status = iomap_write_begin_inline(inode, page, iomap);
+		iomap_read_inline_data(inode, page, iomap);
 	else if (iomap->flags & IOMAP_F_BUFFER_HEAD)
 		status = __block_write_begin_int(page, pos, len, NULL, iomap);
 	else
@@ -721,10 +704,10 @@ iomap_write_end_inline(struct inode *inode, struct page *page,
 	void *addr;
 
 	WARN_ON_ONCE(!PageUptodate(page));
-	BUG_ON(!iomap_inline_data_valid(iomap));
+	BUG_ON(pos + copied > PAGE_SIZE - offset_in_page(iomap->inline_data));
 
 	addr = kmap_atomic(page);
-	memcpy(iomap_inline_data(iomap, pos), addr + pos, copied);
+	memcpy(iomap->inline_data + pos, addr + pos, copied);
 	kunmap_atomic(addr);
 
 	mark_inode_dirty(inode);

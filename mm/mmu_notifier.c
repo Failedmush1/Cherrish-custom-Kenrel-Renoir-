@@ -251,7 +251,7 @@ int __mmu_notifier_register(struct mmu_notifier *mn, struct mm_struct *mm)
 	struct mmu_notifier_mm *mmu_notifier_mm = NULL;
 	int ret;
 
-	mmap_assert_write_locked(mm);
+	lockdep_assert_held_write(&mm->mmap_sem);
 	BUG_ON(atomic_read(&mm->mm_users) <= 0);
 
 	if (IS_ENABLED(CONFIG_LOCKDEP)) {
@@ -334,9 +334,9 @@ int mmu_notifier_register(struct mmu_notifier *mn, struct mm_struct *mm)
 {
 	int ret;
 
-	mmap_write_lock(mm);
+	down_write(&mm->mmap_sem);
 	ret = __mmu_notifier_register(mn, mm);
-	mmap_write_unlock(mm);
+	up_write(&mm->mmap_sem);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(mmu_notifier_register);
@@ -385,7 +385,7 @@ struct mmu_notifier *mmu_notifier_get_locked(const struct mmu_notifier_ops *ops,
 	struct mmu_notifier *mn;
 	int ret;
 
-	mmap_assert_write_locked(mm);
+	lockdep_assert_held_write(&mm->mmap_sem);
 
 	if (mm->mmu_notifier_mm) {
 		mn = find_get_mmu_notifier(mm, ops);

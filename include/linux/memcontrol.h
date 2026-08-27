@@ -29,7 +29,9 @@ struct kmem_cache;
 
 /* Cgroup-specific page state, on top of universal node page state */
 enum memcg_stat_item {
-	MEMCG_RSS_HUGE = NR_VM_NODE_STAT_ITEMS,
+	MEMCG_CACHE = NR_VM_NODE_STAT_ITEMS,
+	MEMCG_RSS,
+	MEMCG_RSS_HUGE,
 	MEMCG_SWAP,
 	MEMCG_SOCK,
 	/* XXX: why are these zone and not node counters? */
@@ -46,6 +48,12 @@ enum memcg_memory_event {
 	MEMCG_SWAP_MAX,
 	MEMCG_SWAP_FAIL,
 	MEMCG_NR_MEMORY_EVENTS,
+};
+
+enum mem_cgroup_protection {
+	MEMCG_PROT_NONE,
+	MEMCG_PROT_LOW,
+	MEMCG_PROT_MIN,
 };
 
 struct mem_cgroup_reclaim_cookie {
@@ -104,7 +112,7 @@ struct memcg_shrinker_map {
 };
 
 /*
- * per-node information in memory controller.
+ * per-zone information in memory controller.
  */
 struct mem_cgroup_per_node {
 	struct lruvec		lruvec;
@@ -126,6 +134,9 @@ struct mem_cgroup_per_node {
 	unsigned long		usage_in_excess;/* Set to the value by which */
 						/* the soft limit is exceeded*/
 	bool			on_tree;
+	bool			congested;	/* memcg has many dirty pages */
+						/* backed by a congested BDI */
+
 	struct mem_cgroup	*memcg;		/* Back pointer, we cannot */
 						/* use container_of	   */
 };
@@ -395,39 +406,19 @@ static inline void mem_cgroup_protection(struct mem_cgroup *root,
 	*low = READ_ONCE(memcg->memory.elow);
 }
 
-void mem_cgroup_calculate_protection(struct mem_cgroup *root,
-				     struct mem_cgroup *memcg);
+enum mem_cgroup_protection mem_cgroup_protected(struct mem_cgroup *root,
+						struct mem_cgroup *memcg);
 
-static inline bool mem_cgroup_supports_protection(struct mem_cgroup *memcg)
-{
-	/*
-	 * The root memcg doesn't account charges, and doesn't support
-	 * protection.
-	 */
-	return !mem_cgroup_disabled() && !mem_cgroup_is_root(memcg);
-
-}
-
-static inline bool mem_cgroup_below_low(struct mem_cgroup *memcg)
-{
-	if (!mem_cgroup_supports_protection(memcg))
-		return false;
-
-	return READ_ONCE(memcg->memory.elow) >=
-		page_counter_read(&memcg->memory);
-}
-
-static inline bool mem_cgroup_below_min(struct mem_cgroup *memcg)
-{
-	if (!mem_cgroup_supports_protection(memcg))
-		return false;
-
-	return READ_ONCE(memcg->memory.emin) >=
-		page_counter_read(&memcg->memory);
-}
-
-int mem_cgroup_charge(struct page *page, struct mm_struct *mm, gfp_t gfp_mask);
-
+int mem_cgroup_try_charge(struct page *page, struct mm_struct *mm,
+			  gfp_t gfp_mask, struct mem_cgroup **memcgp,
+			  bool compound);
+int mem_cgroup_try_charge_delay(struct page *page, struct mm_struct *mm,
+			  gfp_t gfp_mask, struct mem_cgroup **memcgp,
+			  bool compound);
+void mem_cgroup_commit_charge(struct page *page, struct mem_cgroup *memcg,
+			      bool lrucare, bool compound);
+void mem_cgroup_cancel_charge(struct page *page, struct mem_cgroup *memcg,
+		bool compound);
 void mem_cgroup_uncharge(struct page *page);
 void mem_cgroup_uncharge_list(struct list_head *page_list);
 
@@ -440,26 +431,24 @@ mem_cgroup_nodeinfo(struct mem_cgroup *memcg, int nid)
 }
 
 /**
- * mem_cgroup_lruvec - get the lru list vector for a memcg & node
+ * mem_cgroup_lruvec - get the lru list vector for a node or a memcg zone
+ * @node: node of the wanted lruvec
  * @memcg: memcg of the wanted lruvec
  *
- * Returns the lru list vector holding pages for a given @memcg &
- * @node combination. This can be the node lruvec, if the memory
- * controller is disabled.
+ * Returns the lru list vector holding pages for a given @node or a given
+ * @memcg and @zone. This can be the node lruvec, if the memory controller
+ * is disabled.
  */
-static inline struct lruvec *mem_cgroup_lruvec(struct mem_cgroup *memcg,
-					       struct pglist_data *pgdat)
+static inline struct lruvec *mem_cgroup_lruvec(struct pglist_data *pgdat,
+				struct mem_cgroup *memcg)
 {
 	struct mem_cgroup_per_node *mz;
 	struct lruvec *lruvec;
 
 	if (mem_cgroup_disabled()) {
-		lruvec = &pgdat->__lruvec;
+		lruvec = node_lruvec(pgdat);
 		goto out;
 	}
-
-	if (!memcg)
-		memcg = root_mem_cgroup;
 
 	mz = mem_cgroup_nodeinfo(memcg, pgdat->node_id);
 	lruvec = &mz->lruvec;
@@ -628,7 +617,7 @@ struct mem_cgroup *mem_cgroup_get_oom_group(struct task_struct *victim,
 void mem_cgroup_print_oom_group(struct mem_cgroup *memcg);
 
 #ifdef CONFIG_MEMCG_SWAP
-extern bool cgroup_memory_noswap;
+extern int do_swap_account;
 #endif
 
 struct mem_cgroup *lock_page_memcg(struct page *page);
@@ -768,17 +757,16 @@ static inline void mod_lruvec_state(struct lruvec *lruvec,
 static inline void __mod_lruvec_page_state(struct page *page,
 					   enum node_stat_item idx, int val)
 {
-	struct page *head = compound_head(page); /* rmap on tail pages */
 	pg_data_t *pgdat = page_pgdat(page);
 	struct lruvec *lruvec;
 
 	/* Untracked pages have no memcg, no lruvec. Update only the node */
-	if (!head->mem_cgroup) {
+	if (!page->mem_cgroup) {
 		__mod_node_page_state(pgdat, idx, val);
 		return;
 	}
 
-	lruvec = mem_cgroup_lruvec(head->mem_cgroup, pgdat);
+	lruvec = mem_cgroup_lruvec(pgdat, page->mem_cgroup);
 	__mod_lruvec_state(lruvec, idx, val);
 }
 
@@ -904,25 +892,41 @@ static inline void mem_cgroup_protection(struct mem_cgroup *root,
 	*min = *low = 0;
 }
 
-static inline void mem_cgroup_calculate_protection(struct mem_cgroup *root,
-						   struct mem_cgroup *memcg)
+static inline enum mem_cgroup_protection mem_cgroup_protected(
+	struct mem_cgroup *root, struct mem_cgroup *memcg)
 {
+	return MEMCG_PROT_NONE;
 }
 
-static inline bool mem_cgroup_below_low(struct mem_cgroup *memcg)
+static inline int mem_cgroup_try_charge(struct page *page, struct mm_struct *mm,
+					gfp_t gfp_mask,
+					struct mem_cgroup **memcgp,
+					bool compound)
 {
-	return false;
-}
-
-static inline bool mem_cgroup_below_min(struct mem_cgroup *memcg)
-{
-	return false;
-}
-
-static inline int mem_cgroup_charge(struct page *page, struct mm_struct *mm,
-				    gfp_t gfp_mask)
-{
+	*memcgp = NULL;
 	return 0;
+}
+
+static inline int mem_cgroup_try_charge_delay(struct page *page,
+					      struct mm_struct *mm,
+					      gfp_t gfp_mask,
+					      struct mem_cgroup **memcgp,
+					      bool compound)
+{
+	*memcgp = NULL;
+	return 0;
+}
+
+static inline void mem_cgroup_commit_charge(struct page *page,
+					    struct mem_cgroup *memcg,
+					    bool lrucare, bool compound)
+{
+}
+
+static inline void mem_cgroup_cancel_charge(struct page *page,
+					    struct mem_cgroup *memcg,
+					    bool compound)
+{
 }
 
 static inline void mem_cgroup_uncharge(struct page *page)
@@ -937,21 +941,16 @@ static inline void mem_cgroup_migrate(struct page *old, struct page *new)
 {
 }
 
-static inline struct lruvec *mem_cgroup_lruvec(struct mem_cgroup *memcg,
-					       struct pglist_data *pgdat)
+static inline struct lruvec *mem_cgroup_lruvec(struct pglist_data *pgdat,
+				struct mem_cgroup *memcg)
 {
-	return &pgdat->__lruvec;
+	return node_lruvec(pgdat);
 }
 
 static inline struct lruvec *mem_cgroup_page_lruvec(struct page *page,
 						    struct pglist_data *pgdat)
 {
-	return &pgdat->__lruvec;
-}
-
-static inline struct mem_cgroup *parent_mem_cgroup(struct mem_cgroup *memcg)
-{
-	return NULL;
+	return &pgdat->lruvec;
 }
 
 static inline bool mm_match_cgroup(struct mm_struct *mm,
@@ -1324,19 +1323,6 @@ static inline void dec_lruvec_page_state(struct page *page,
 	mod_lruvec_page_state(page, idx, -1);
 }
 
-static inline struct lruvec *parent_lruvec(struct lruvec *lruvec)
-{
-	struct mem_cgroup *memcg;
-
-	memcg = lruvec_memcg(lruvec);
-	if (!memcg)
-		return NULL;
-	memcg = parent_mem_cgroup(memcg);
-	if (!memcg)
-		return NULL;
-	return mem_cgroup_lruvec(memcg, lruvec_pgdat(lruvec));
-}
-
 #ifdef CONFIG_CGROUP_WRITEBACK
 
 struct wb_domain *mem_cgroup_wb_domain(struct bdi_writeback *wb);
@@ -1427,11 +1413,12 @@ struct kmem_cache *memcg_kmem_get_cache(struct kmem_cache *cachep);
 void memcg_kmem_put_cache(struct kmem_cache *cachep);
 
 #ifdef CONFIG_MEMCG_KMEM
-int __memcg_kmem_charge(struct mem_cgroup *memcg, gfp_t gfp,
-			unsigned int nr_pages);
-void __memcg_kmem_uncharge(struct mem_cgroup *memcg, unsigned int nr_pages);
-int __memcg_kmem_charge_page(struct page *page, gfp_t gfp, int order);
-void __memcg_kmem_uncharge_page(struct page *page, int order);
+int __memcg_kmem_charge(struct page *page, gfp_t gfp, int order);
+void __memcg_kmem_uncharge(struct page *page, int order);
+int __memcg_kmem_charge_memcg(struct page *page, gfp_t gfp, int order,
+			      struct mem_cgroup *memcg);
+void __memcg_kmem_uncharge_memcg(struct mem_cgroup *memcg,
+				 unsigned int nr_pages);
 
 extern struct static_key_false memcg_kmem_enabled_key;
 extern struct workqueue_struct *memcg_kmem_cache_wq;
@@ -1453,33 +1440,32 @@ static inline bool memcg_kmem_enabled(void)
 	return static_branch_unlikely(&memcg_kmem_enabled_key);
 }
 
-static inline int memcg_kmem_charge_page(struct page *page, gfp_t gfp,
-					 int order)
+static inline int memcg_kmem_charge(struct page *page, gfp_t gfp, int order)
 {
 	if (memcg_kmem_enabled())
-		return __memcg_kmem_charge_page(page, gfp, order);
+		return __memcg_kmem_charge(page, gfp, order);
 	return 0;
 }
 
-static inline void memcg_kmem_uncharge_page(struct page *page, int order)
+static inline void memcg_kmem_uncharge(struct page *page, int order)
 {
 	if (memcg_kmem_enabled())
-		__memcg_kmem_uncharge_page(page, order);
+		__memcg_kmem_uncharge(page, order);
 }
 
-static inline int memcg_kmem_charge(struct mem_cgroup *memcg, gfp_t gfp,
-				    unsigned int nr_pages)
+static inline int memcg_kmem_charge_memcg(struct page *page, gfp_t gfp,
+					  int order, struct mem_cgroup *memcg)
 {
 	if (memcg_kmem_enabled())
-		return __memcg_kmem_charge(memcg, gfp, nr_pages);
+		return __memcg_kmem_charge_memcg(page, gfp, order, memcg);
 	return 0;
 }
 
-static inline void memcg_kmem_uncharge(struct mem_cgroup *memcg,
-				       unsigned int nr_pages)
+static inline void memcg_kmem_uncharge_memcg(struct page *page, int order,
+					     struct mem_cgroup *memcg)
 {
 	if (memcg_kmem_enabled())
-		__memcg_kmem_uncharge(memcg, nr_pages);
+		__memcg_kmem_uncharge_memcg(memcg, 1 << order);
 }
 
 /*
@@ -1496,23 +1482,21 @@ struct mem_cgroup *mem_cgroup_from_obj(void *p);
 
 #else
 
-static inline int memcg_kmem_charge_page(struct page *page, gfp_t gfp,
-					 int order)
+static inline int memcg_kmem_charge(struct page *page, gfp_t gfp, int order)
 {
 	return 0;
 }
 
-static inline void memcg_kmem_uncharge_page(struct page *page, int order)
+static inline void memcg_kmem_uncharge(struct page *page, int order)
 {
 }
 
-static inline int __memcg_kmem_charge_page(struct page *page, gfp_t gfp,
-					   int order)
+static inline int __memcg_kmem_charge(struct page *page, gfp_t gfp, int order)
 {
 	return 0;
 }
 
-static inline void __memcg_kmem_uncharge_page(struct page *page, int order)
+static inline void __memcg_kmem_uncharge(struct page *page, int order)
 {
 }
 

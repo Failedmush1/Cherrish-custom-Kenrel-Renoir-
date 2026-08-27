@@ -172,9 +172,7 @@ success:
 	/*
 	 * vm_flags is protected by the mmap_sem held in write mode.
 	 */
-	vm_write_begin(vma);
-	WRITE_ONCE(vma->vm_flags, new_flags);
-	vm_write_end(vma);
+	vma->vm_flags = vma_pad_fixup_flags(vma, new_flags);
 
 out_convert_errno:
 	/*
@@ -299,10 +297,10 @@ static long madvise_willneed(struct vm_area_struct *vma,
 	get_file(file);
 	offset = (loff_t)(start - vma->vm_start)
 			+ ((loff_t)vma->vm_pgoff << PAGE_SHIFT);
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 	vfs_fadvise(file, offset, end - start, POSIX_FADV_WILLNEED);
 	fput(file);
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 	return 0;
 }
 
@@ -794,7 +792,7 @@ static long madvise_dontneed_free(struct vm_area_struct *vma,
 	if (!userfaultfd_remove(vma, start, end)) {
 		*prev = NULL; /* mmap_sem has been dropped, prev is stale */
 
-		mmap_read_lock(mm);
+		down_read(&mm->mmap_sem);
 		vma = find_vma(mm, start);
 		if (!vma)
 			return -ENOMEM;
@@ -877,13 +875,13 @@ static long madvise_remove(struct vm_area_struct *vma,
 	get_file(f);
 	if (userfaultfd_remove(vma, start, end)) {
 		/* mmap_sem was not released by userfaultfd_remove() */
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 	}
 	error = vfs_fallocate(f,
 				FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
 				offset, end - start);
 	fput(f);
-	mmap_read_lock(mm);
+	down_read(&mm->mmap_sem);
 	return error;
 }
 
@@ -1137,7 +1135,7 @@ int do_madvise(struct task_struct *target_task, struct mm_struct *mm,
 
 	write = madvise_need_mmap_write(behavior);
 	if (write) {
-		if (mmap_write_lock_killable(mm))
+		if (down_write_killable(&mm->mmap_sem))
 			return -EINTR;
 
 		/*
@@ -1153,11 +1151,11 @@ int do_madvise(struct task_struct *target_task, struct mm_struct *mm,
 		 * model.
 		 */
 		if (!mmget_still_valid(mm)) {
-			mmap_write_unlock(mm);
+			up_write(&mm->mmap_sem);
 			return -EINTR;
 		}
 	} else {
-		mmap_read_lock(mm);
+		down_read(&mm->mmap_sem);
 	}
 
 	/*
@@ -1208,9 +1206,9 @@ int do_madvise(struct task_struct *target_task, struct mm_struct *mm,
 out:
 	blk_finish_plug(&plug);
 	if (write)
-		mmap_write_unlock(mm);
+		up_write(&mm->mmap_sem);
 	else
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 
 	return error;
 }

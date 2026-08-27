@@ -283,9 +283,9 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 		 * Do at most PAGE_SIZE entries per iteration, due to
 		 * the temporary buffer size.
 		 */
-		mmap_read_lock(current->mm);
+		down_read(&current->mm->mmap_sem);
 		retval = do_mincore(start, min(pages, PAGE_SIZE), tmp);
-		mmap_read_unlock(current->mm);
+		up_read(&current->mm->mmap_sem);
 
 		if (retval <= 0)
 			break;

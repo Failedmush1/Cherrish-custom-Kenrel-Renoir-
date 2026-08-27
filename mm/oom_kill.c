@@ -42,6 +42,8 @@
 #include <linux/kthread.h>
 #include <linux/init.h>
 #include <linux/mmu_notifier.h>
+#include <linux/show_mem_notifier.h>
+#include <linux/memory_hotplug.h>
 #include <linux/cred.h>
 #include <linux/nmi.h>
 
@@ -602,7 +604,7 @@ static bool oom_reap_task_mm(struct task_struct *tsk, struct mm_struct *mm)
 {
 	bool ret = true;
 
-	if (!mmap_read_trylock(mm)) {
+	if (!down_read_trylock(&mm->mmap_sem)) {
 		trace_skip_task_reaping(tsk->pid);
 		return false;
 	}
@@ -633,7 +635,7 @@ static bool oom_reap_task_mm(struct task_struct *tsk, struct mm_struct *mm)
 out_finish:
 	trace_finish_task_reaping(tsk->pid);
 out_unlock:
-	mmap_read_unlock(mm);
+	up_read(&mm->mmap_sem);
 
 	return ret;
 }
@@ -749,7 +751,6 @@ static void __mark_oom_victim(struct task_struct *tsk)
 static void mark_oom_victim(struct task_struct *tsk)
 {
 	const struct cred *cred;
-	struct mm_struct *mm = tsk->mm;
 
 	WARN_ON(oom_killer_disabled);
 	/* OOM killer might race with memcg OOM */
