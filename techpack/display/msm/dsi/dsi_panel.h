@@ -20,6 +20,7 @@
 #include "dsi_pwr.h"
 #include "dsi_parser.h"
 #include "msm_drv.h"
+#include "mi_dsi_panel.h"
 
 #define MAX_BL_LEVEL 4096
 #define MAX_BL_SCALE_LEVEL 1024
@@ -172,6 +173,7 @@ struct drm_panel_esd_config {
 
 	enum esd_check_status_mode status_mode;
 	struct dsi_panel_cmd_set status_cmd;
+	struct dsi_panel_cmd_set offset_cmd;
 	u32 *status_cmds_rlen;
 	u32 *status_valid_params;
 	u32 *status_value;
@@ -243,6 +245,7 @@ struct dsi_panel {
 	struct dsi_pinctrl_info pinctrl;
 	struct drm_panel_hdr_properties hdr_props;
 	struct drm_panel_esd_config esd_config;
+	struct mi_dsi_panel_cfg mi_cfg;
 
 	struct dsi_parser_utils utils;
 

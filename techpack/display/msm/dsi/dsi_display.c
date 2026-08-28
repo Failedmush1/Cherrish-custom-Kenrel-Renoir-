@@ -6,8 +6,10 @@
 
 #include <linux/list.h>
 #include <linux/of.h>
+#include <linux/of_graph.h>
 #include <linux/of_gpio.h>
 #include <linux/err.h>
+#include <video/mipi_display.h>
 #include <drm/mi_disp_notifier.h>
 
 #include "msm_drv.h"
@@ -26,6 +28,10 @@
 #include "mi_disp_feature.h"
 #include "mi_dsi_display.h"
 #include "mi_disp_print.h"
+
+const char *get_display_power_mode_name(int power_mode);
+void mi_dsi_display_update_backlight(struct dsi_display *display);
+static inline int dsi_panel_gamma_switch(struct dsi_panel *panel) { return 0; }
 
 #define to_dsi_display(x) container_of(x, struct dsi_display, host)
 #define INT_BASE_10 10
@@ -4380,7 +4386,7 @@ static int dsi_display_parse_dt(struct dsi_display *display)
 
 	/* Parse all external bridges from port 0 */
 	display_for_each_ctrl(i, display) {
-		if (of_graph_is_present(of_node)) {
+		if (of_graph_get_next_endpoint(of_node, NULL) != NULL) {
 			display->ext_bridge[i].node_of =
 				of_graph_get_remote_node(of_node, 0, i);
 		} else
@@ -4448,9 +4454,9 @@ static int dsi_display_res_init(struct dsi_display *display)
 		 * Parse the dynamic clock trim codes for PLL, for video mode panels that have
 		 * dynamic clock property set.
 		 */
-		if ((display->panel->dyn_clk_caps.dyn_clk_support) &&
+		/* if ((display->panel->dyn_clk_caps.dyn_clk_support) &&
 				(display->panel->panel_mode == DSI_OP_VIDEO_MODE))
-			dsi_phy_pll_parse_dfps_data(phy);
+			dsi_phy_pll_parse_dfps_data(phy); */
 	}
 
 	rc = dsi_display_parse_lane_map(display);
