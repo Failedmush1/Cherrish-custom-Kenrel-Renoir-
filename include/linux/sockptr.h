@@ -39,7 +39,6 @@ static inline bool sockptr_is_null(sockptr_t sockptr)
 	return !sockptr.user && !sockptr.kernel;
 }
 
-<<<<<<< HEAD
 static inline int copy_from_sockptr_offset(void *dst, sockptr_t src,
 		size_t offset, size_t size)
 {
@@ -52,14 +51,6 @@ static inline int copy_from_sockptr_offset(void *dst, sockptr_t src,
 static inline int copy_from_sockptr(void *dst, sockptr_t src, size_t size)
 {
 	return copy_from_sockptr_offset(dst, src, 0, size);
-=======
-static inline int copy_from_sockptr(void *dst, sockptr_t src, size_t size)
-{
-	if (!sockptr_is_kernel(src))
-		return copy_from_user(dst, src.user, size);
-	memcpy(dst, src.kernel, size);
-	return 0;
->>>>>>> 7103de2804e1 (Backport Android 17 BPF support)
 }
 
 static inline int copy_to_sockptr_offset(sockptr_t dst, size_t offset,
@@ -103,8 +94,6 @@ static inline void *memdup_sockptr_nul(sockptr_t src, size_t len)
 	return p;
 }
 
-<<<<<<< HEAD
-=======
 static inline void sockptr_advance(sockptr_t sockptr, size_t len)
 {
 	if (sockptr_is_kernel(sockptr))
@@ -113,7 +102,6 @@ static inline void sockptr_advance(sockptr_t sockptr, size_t len)
 		sockptr.user += len;
 }
 
->>>>>>> 7103de2804e1 (Backport Android 17 BPF support)
 static inline long strncpy_from_sockptr(char *dst, sockptr_t src, size_t count)
 {
 	if (sockptr_is_kernel(src)) {

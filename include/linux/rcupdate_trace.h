@@ -11,34 +11,21 @@
 #include <linux/sched.h>
 #include <linux/rcupdate.h>
 
-<<<<<<< HEAD
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 
 extern struct lockdep_map rcu_trace_lock_map;
 
-=======
-#ifdef CONFIG_TASKS_TRACE_RCU
-
-extern struct lockdep_map rcu_trace_lock_map;
-
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
->>>>>>> af16a2592104 (renoir: fix BPF build dependencies and enable BPF_STREAM_PARSER)
 static inline int rcu_read_lock_trace_held(void)
 {
 	return lock_is_held(&rcu_trace_lock_map);
 }
-<<<<<<< HEAD
 
 #else /* #ifdef CONFIG_DEBUG_LOCK_ALLOC */
 
-=======
-#else
->>>>>>> af16a2592104 (renoir: fix BPF build dependencies and enable BPF_STREAM_PARSER)
 static inline int rcu_read_lock_trace_held(void)
 {
 	return 1;
 }
-<<<<<<< HEAD
 
 #endif /* #else #ifdef CONFIG_DEBUG_LOCK_ALLOC */
 
@@ -58,18 +45,11 @@ void rcu_read_unlock_trace_special(struct task_struct *t);
  *
  * For more details, please see the documentation for rcu_read_lock().
  */
-=======
-#endif
-
-void rcu_read_unlock_trace_special(struct task_struct *t);
-
->>>>>>> af16a2592104 (renoir: fix BPF build dependencies and enable BPF_STREAM_PARSER)
 static inline void rcu_read_lock_trace(void)
 {
 	struct task_struct *t = current;
 
 	WRITE_ONCE(t->trc_reader_nesting, READ_ONCE(t->trc_reader_nesting) + 1);
-<<<<<<< HEAD
 	rcu_lock_acquire(&rcu_trace_lock_map);
 }
 
@@ -82,15 +62,6 @@ static inline void rcu_read_lock_trace(void)
  *
  * For more details, please see the documentation for rcu_read_unlock().
  */
-=======
-	barrier();
-	if (IS_ENABLED(CONFIG_TASKS_TRACE_RCU_READ_MB) &&
-	    t->trc_reader_special.b.need_mb)
-		smp_mb();
-	rcu_lock_acquire(&rcu_trace_lock_map);
-}
-
->>>>>>> af16a2592104 (renoir: fix BPF build dependencies and enable BPF_STREAM_PARSER)
 static inline void rcu_read_unlock_trace(void)
 {
 	int nesting;
@@ -98,19 +69,9 @@ static inline void rcu_read_unlock_trace(void)
 
 	rcu_lock_release(&rcu_trace_lock_map);
 	nesting = READ_ONCE(t->trc_reader_nesting) - 1;
-<<<<<<< HEAD
 	WRITE_ONCE(t->trc_reader_nesting, nesting);
 	if (likely(!READ_ONCE(t->trc_reader_need_end)) || nesting)
 		return;  // We assume shallow reader nesting.
-=======
-	barrier();
-	WRITE_ONCE(t->trc_reader_nesting, INT_MIN + nesting);
-	if (likely(!READ_ONCE(t->trc_reader_special.s)) || nesting) {
-		WRITE_ONCE(t->trc_reader_nesting, nesting);
-		return;
-	}
-	WARN_ON_ONCE(nesting != 0);
->>>>>>> af16a2592104 (renoir: fix BPF build dependencies and enable BPF_STREAM_PARSER)
 	rcu_read_unlock_trace_special(t);
 }
 
@@ -118,9 +79,6 @@ void call_rcu_tasks_trace(struct rcu_head *rhp, rcu_callback_t func);
 void synchronize_rcu_tasks_trace(void);
 void rcu_barrier_tasks_trace(void);
 
-<<<<<<< HEAD
-#endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
-=======
 #else /* !CONFIG_TASKS_TRACE_RCU */
 
 static inline int rcu_read_lock_trace_held(void)
@@ -144,6 +102,5 @@ static inline void rcu_barrier_tasks_trace(void)
 }
 
 #endif /* CONFIG_TASKS_TRACE_RCU */
->>>>>>> af16a2592104 (renoir: fix BPF build dependencies and enable BPF_STREAM_PARSER)
 
 #endif /* __LINUX_RCUPDATE_TRACE_H */
