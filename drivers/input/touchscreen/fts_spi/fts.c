@@ -6453,6 +6453,10 @@ static void fts_resume_work(struct work_struct *work)
 #ifdef FTS_XIAOMI_TOUCHFEATURE
 	struct xiaomi_touch_pdata *pdata;
 #endif
+
+#ifdef FTS_XIAOMI_TOUCHFEATURE
+	struct xiaomi_touch_pdata *pdata;
+#endif
 	info = container_of(work, struct fts_ts_info, resume_work);
 	fts_disableInterrupt();
 #ifdef CONFIG_SECURE_TOUCH
