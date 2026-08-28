@@ -310,7 +310,7 @@ void css_task_iter_end(struct css_task_iter *it);
 
 static inline u64 cgroup_id(struct cgroup *cgrp)
 {
-	return cgrp->kn->id.id;
+	return cgrp->id.id;
 }
 
 /**
@@ -574,7 +574,7 @@ static inline bool cgroup_is_descendant(struct cgroup *cgrp,
 {
 	if (cgrp->root != ancestor->root || cgrp->level < ancestor->level)
 		return false;
-	return cgrp->ancestor_ids[ancestor->level] == ancestor->id;
+	return cgrp->ancestor_ids[ancestor->level] == ancestor->id.id;
 }
 
 /**
@@ -625,7 +625,7 @@ static inline bool cgroup_is_populated(struct cgroup *cgrp)
 /* returns ino associated with a cgroup */
 static inline ino_t cgroup_ino(struct cgroup *cgrp)
 {
-	return cgrp->kn->id.ino;
+	return cgrp->id.ino;
 }
 
 /* cft/css accessors for cftype->write() operation */
@@ -700,7 +700,7 @@ static inline void cgroup_kthread_ready(void)
 
 static inline union kernfs_node_id *cgroup_get_kernfs_id(struct cgroup *cgrp)
 {
-	return &cgrp->kn->id;
+	return &cgrp->id;
 }
 
 void cgroup_path_from_kernfs_id(const union kernfs_node_id *id,

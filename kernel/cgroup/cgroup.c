@@ -2121,7 +2121,7 @@ int cgroup_setup_root(struct cgroup_root *root, u16 ss_mask)
 		ret = PTR_ERR(root->kf_root);
 		goto exit_root_id;
 	}
-	root_cgrp->kn = root->kf_root->kn;
+	root_cgrp->kn = root->kf_root->kn; root_cgrp->id = root_cgrp->kn->id;
 	WARN_ON_ONCE(cgroup_ino(root_cgrp) != 1);
 	root_cgrp->ancestor_ids[0] = cgroup_id(root_cgrp);
 
@@ -5476,7 +5476,7 @@ static struct cgroup *cgroup_create(struct cgroup *parent, const char *name,
 		ret = PTR_ERR(kn);
 		goto out_stat_exit;
 	}
-	cgrp->kn = kn;
+	cgrp->kn = kn; cgrp->id = kn->id;
 
 	init_cgroup_housekeeping(cgrp);
 
@@ -6065,11 +6065,11 @@ static int __init cgroup_wq_init(void)
 }
 core_initcall(cgroup_wq_init);
 
-void cgroup_path_from_kernfs_id(u64 id, char *buf, size_t buflen)
+void cgroup_path_from_kernfs_id(const union kernfs_node_id *id, char *buf, size_t buflen)
 {
 	struct kernfs_node *kn;
 
-	kn = kernfs_get_node_by_id(cgrp_dfl_root.kf_root, id);
+	kn = kernfs_get_node_by_id(cgrp_dfl_root.kf_root, id->id);
 	if (!kn)
 		return;
 	kernfs_path(kn, buf, buflen);

@@ -1,3 +1,4 @@
+#include <linux/kernfs_types.h>
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * kernfs.h - pseudo filesystem decoupled from vfs locking
@@ -152,7 +153,7 @@ struct kernfs_node {
 	 * 64bit unique ID.  Lower 32bits carry the inode number and lower
 	 * generation.
 	 */
-	u64			id;
+	union kernfs_node_id	id;
 
 	unsigned short		flags;
 	umode_t			mode;
@@ -300,22 +301,22 @@ static inline enum kernfs_node_type kernfs_type(struct kernfs_node *kn)
 
 static inline ino_t kernfs_id_ino(u64 id)
 {
-	return (u32)id;
+	union kernfs_node_id knid = { .id = id }; return knid.ino;
 }
 
 static inline u32 kernfs_id_gen(u64 id)
 {
-	return id >> 32;
+	union kernfs_node_id knid = { .id = id }; return knid.generation;
 }
 
 static inline ino_t kernfs_ino(struct kernfs_node *kn)
 {
-	return kernfs_id_ino(kn->id);
+	return kn->id.ino;
 }
 
 static inline ino_t kernfs_gen(struct kernfs_node *kn)
 {
-	return kernfs_id_gen(kn->id);
+	return kn->id.generation;
 }
 
 /**

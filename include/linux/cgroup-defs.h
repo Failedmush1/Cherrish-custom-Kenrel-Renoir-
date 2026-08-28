@@ -1,3 +1,4 @@
+#include <linux/kernfs_types.h>
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * linux/cgroup-defs.h - basic definitions for cgroup
@@ -125,6 +126,7 @@ enum {
 struct cgroup_file {
 	/* do not access any fields from outside cgroup core */
 	struct kernfs_node *kn;
+union kernfs_node_id id;
 	unsigned long notified_at;
 	struct timer_list notify_timer;
 };
@@ -411,6 +413,7 @@ struct cgroup {
 	int nr_threaded_children;	/* # of live threaded child cgroups */
 
 	struct kernfs_node *kn;		/* cgroup kernfs entry */
+union kernfs_node_id id;
 	struct cgroup_file procs_file;	/* handle for "cgroup.procs" */
 	struct cgroup_file events_file;	/* handle for "cgroup.events" */
 

@@ -3094,4 +3094,6 @@ static inline int seal_check_write(int seals, struct vm_area_struct *vma)
 }
 
 #endif /* __KERNEL__ */
+static inline void vm_write_begin(struct vm_area_struct *vma) {}
+static inline void vm_write_end(struct vm_area_struct *vma) {}
 #endif /* _LINUX_MM_H */

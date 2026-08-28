@@ -652,7 +652,7 @@ static struct kernfs_node *__kernfs_new_node(struct kernfs_root *root,
 	if (ret < 0)
 		goto err_out2;
 
-	kn->id = (u64)gen << 32 | ret;
+	kn->id.id = (u64)gen << 32 | ret;
 
 	/*
 	 * set ino first. This RELEASE is paired with atomic_inc_not_zero in
@@ -760,7 +760,7 @@ struct kernfs_node *kernfs_find_and_get_node_by_ino(struct kernfs_root *root,
 	 * before 'count'. So if 'count' is uptodate, 'ino' should be uptodate,
 	 * hence we can use 'ino' to filter stale node.
 	 */
-	if ((u32)kn->id != ino)
+	if (kn->id.ino != ino)
 		goto out;
 	rcu_read_unlock();
 
