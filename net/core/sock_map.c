@@ -1104,3 +1104,7 @@ void sk_psock_unlink(struct sock *sk, struct sk_psock_link *link)
 		break;
 	}
 }
+
+void sock_map_unhash(struct sock *sk) {}
+void sock_map_destroy(struct sock *sk) {}
+void sock_map_close(struct sock *sk, long timeout) {}
