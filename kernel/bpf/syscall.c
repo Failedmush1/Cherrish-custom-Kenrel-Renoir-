@@ -4058,15 +4058,6 @@ static int tracing_bpf_link_attach(const union bpf_attr *attr, struct bpf_prog *
 	return -EINVAL;
 }
 
-/* The 5.4 networking stack keeps its vendor XDP attach ABI. BPF links for
- * XDP need net_device lifetime changes that are outside this core backport.
- */
-static int bpf_xdp_link_attach(const union bpf_attr *attr,
-			       struct bpf_prog *prog)
-{
-	return -EOPNOTSUPP;
-}
-
 #define BPF_LINK_CREATE_LAST_FIELD link_create.iter_info_len
 static int link_create(union bpf_attr *attr)
 {

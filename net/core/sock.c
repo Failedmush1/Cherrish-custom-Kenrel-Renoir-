@@ -1454,7 +1454,7 @@ static int sk_getsockopt(struct sock *sk, int level, int optname,
 		return sock_getbindtodevice(sk, optval, optlen, len);
 
 	case SO_GET_FILTER:
-		len = sk_get_filter(sk, optval, len);
+		len = sk_get_filter(sk, optval.user, len);
 		if (len < 0)
 			return len;
 

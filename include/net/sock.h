@@ -440,28 +440,19 @@ struct sock {
 	 * changes are protected by socket lock.
 	 */
 	unsigned int		__sk_flags_offset[0];
-#ifdef __BIG_ENDIAN_BITFIELD
-#define SK_FL_PROTO_SHIFT  16
-#define SK_FL_PROTO_MASK   0x00ff0000
 
-#define SK_FL_TYPE_SHIFT   0
-#define SK_FL_TYPE_MASK    0x0000ffff
-#else
-#define SK_FL_PROTO_SHIFT  8
-#define SK_FL_PROTO_MASK   0x0000ff00
-
-#define SK_FL_TYPE_SHIFT   16
-#define SK_FL_TYPE_MASK    0xffff0000
-#endif
-
-	unsigned int		sk_padding : 1,
+	u8			sk_padding : 1,
 				sk_kern_sock : 1,
 				sk_no_check_tx : 1,
 				sk_no_check_rx : 1,
-				sk_userlocks : 4,
-				sk_protocol  : 8,
-				sk_type      : 16;
+				sk_userlocks : 4;
+	u8			sk_protocol;
+	u16			sk_type;
 #define SK_PROTOCOL_MAX U8_MAX
+#define SK_FL_PROTO_SHIFT 0
+#define SK_FL_PROTO_MASK 0xff
+#define SK_FL_TYPE_SHIFT 0
+#define SK_FL_TYPE_MASK 0xffff
 	u16			sk_gso_max_segs;
 	u8			sk_pacing_shift;
 	unsigned long	        sk_lingertime;
@@ -544,8 +535,42 @@ enum sk_pacing {
 
 #define __sk_user_data(sk) ((*((void __rcu **)&(sk)->sk_user_data)))
 
-#define rcu_dereference_sk_user_data(sk)	rcu_dereference(__sk_user_data((sk)))
-#define rcu_assign_sk_user_data(sk, ptr)	rcu_assign_pointer(__sk_user_data((sk)), ptr)
+/* Pointer stored in sk_user_data might not be suitable for copying
+ * when cloning the socket. For instance, it can point to a reference
+ * counted object. sk_user_data bottom bit is set if pointer must not
+ * be copied.
+ */
+#define SK_USER_DATA_NOCOPY	1UL
+#define SK_USER_DATA_BPF	2UL	/* Managed by BPF */
+#define SK_USER_DATA_PTRMASK	~(SK_USER_DATA_NOCOPY | SK_USER_DATA_BPF)
+
+/**
+ * sk_user_data_is_nocopy - Test if sk_user_data pointer must not be copied
+ * @sk: socket
+ */
+static inline bool sk_user_data_is_nocopy(const struct sock *sk)
+{
+	return ((uintptr_t)sk->sk_user_data & SK_USER_DATA_NOCOPY);
+}
+
+#define rcu_dereference_sk_user_data(sk)		\
+({							\
+	void *__tmp = rcu_dereference(__sk_user_data((sk)));		\
+	(void *)((uintptr_t)__tmp & SK_USER_DATA_PTRMASK);		\
+})
+#define rcu_assign_sk_user_data(sk, ptr)		\
+({							\
+	uintptr_t __tmp = (uintptr_t)(ptr);		\
+	WARN_ON_ONCE(__tmp & ~SK_USER_DATA_PTRMASK);	\
+	rcu_assign_pointer(__sk_user_data((sk)), __tmp);\
+})
+#define rcu_assign_sk_user_data_nocopy(sk, ptr)	\
+({							\
+	uintptr_t __tmp = (uintptr_t)(ptr);		\
+	WARN_ON_ONCE(__tmp & ~SK_USER_DATA_PTRMASK);	\
+	rcu_assign_pointer(__sk_user_data((sk)),	\
+			   __tmp | SK_USER_DATA_NOCOPY);\
+})
 
 /*
  * SK_CAN_REUSE and SK_NO_REUSE on a socket mean that the socket is OK
@@ -559,6 +584,7 @@ enum sk_pacing {
 #define SK_FORCE_REUSE	2
 
 int sk_set_peek_off(struct sock *sk, int val);
+int sock_bindtoindex(struct sock *sk, int ifindex, bool lock_sk);
 
 static inline int sk_peek_offset(struct sock *sk, int flags)
 {
@@ -785,6 +811,8 @@ static inline void sk_add_bind_node(struct sock *sk,
 	hlist_for_each_entry_safe(__sk, tmp, list, sk_node)
 #define sk_for_each_bound(__sk, list) \
 	hlist_for_each_entry(__sk, list, sk_bind_node)
+#define sk_for_each_bound_safe(__sk, tmp, list) \
+	hlist_for_each_entry_safe(__sk, tmp, list, sk_bind_node)
 
 /**
  * sk_for_each_entry_offset_rcu - iterate over a list at a given struct offset
@@ -865,6 +893,18 @@ static inline bool sock_flag(const struct sock *sk, enum sock_flags flag)
 {
 	return test_bit(flag, &sk->sk_flags);
 }
+
+static inline void sock_valbool_flag(struct sock *sk, int bit, int valbool)
+{
+	if (valbool)
+		sock_set_flag(sk, bit);
+	else
+		sock_reset_flag(sk, bit);
+}
+
+static inline void sk_owner_set(struct sock *sk, struct module *owner) {}
+static inline void sk_owner_clear(struct sock *sk) {}
+static inline void sk_owner_put(struct sock *sk) {}
 
 #ifdef CONFIG_NET
 DECLARE_STATIC_KEY_FALSE(memalloc_socks_key);
@@ -2578,7 +2618,7 @@ void sock_net_set(struct sock *sk, struct net *net)
 	write_pnet(&sk->sk_net, net);
 }
 
-static inline struct sock *skb_steal_sock(struct sk_buff *skb)
+static inline struct sock *skb_steal_sock(struct sk_buff *skb, bool *refcounted)
 {
 	if (skb->sk) {
 		struct sock *sk = skb->sk;

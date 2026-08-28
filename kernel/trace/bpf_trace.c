@@ -1671,19 +1671,19 @@ tracing_prog_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 	switch (func_id) {
 #ifdef CONFIG_NET
 	case BPF_FUNC_skb_output:
-		return &bpf_skb_output_proto;
+		return NULL;
 	case BPF_FUNC_xdp_output:
-		return &bpf_xdp_output_proto;
+		return NULL;
 	case BPF_FUNC_skc_to_tcp6_sock:
-		return &bpf_skc_to_tcp6_sock_proto;
+		return NULL;
 	case BPF_FUNC_skc_to_tcp_sock:
-		return &bpf_skc_to_tcp_sock_proto;
+		return NULL;
 	case BPF_FUNC_skc_to_tcp_timewait_sock:
-		return &bpf_skc_to_tcp_timewait_sock_proto;
+		return NULL;
 	case BPF_FUNC_skc_to_tcp_request_sock:
-		return &bpf_skc_to_tcp_request_sock_proto;
+		return NULL;
 	case BPF_FUNC_skc_to_udp6_sock:
-		return &bpf_skc_to_udp6_sock_proto;
+		return NULL;
 #endif
 	case BPF_FUNC_seq_printf:
 		return prog->expected_attach_type == BPF_TRACE_ITER ?
@@ -1748,27 +1748,6 @@ const struct bpf_verifier_ops tracing_verifier_ops = {
 
 const struct bpf_prog_ops tracing_prog_ops = {
 	.test_run = bpf_prog_test_run_tracing,
-};
-
-static bool tracing_prog_is_valid_access(int off, int size,
-					 enum bpf_access_type type,
-					 const struct bpf_prog *prog,
-					 struct bpf_insn_access_aux *info)
-{
-	if (off < 0 || off >= sizeof(__u64) * MAX_BPF_FUNC_ARGS)
-		return false;
-	if (type != BPF_READ || off % size != 0)
-		return false;
-
-	return btf_ctx_access(off, size, type, prog, info);
-}
-
-const struct bpf_verifier_ops tracing_verifier_ops = {
-	.get_func_proto	 = raw_tp_prog_func_proto,
-	.is_valid_access = tracing_prog_is_valid_access,
-};
-
-const struct bpf_prog_ops tracing_prog_ops = {
 };
 
 static bool raw_tp_writable_prog_is_valid_access(int off, int size,

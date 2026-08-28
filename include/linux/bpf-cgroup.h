@@ -147,7 +147,8 @@ int __cgroup_bpf_check_dev_permission(short dev_type, u32 major, u32 minor,
 
 int __cgroup_bpf_run_filter_sysctl(struct ctl_table_header *head,
 				   struct ctl_table *table, int write,
-				   char **buf, size_t *pcount, loff_t *ppos,
+				   void __user *buf, size_t *pcount,
+				   loff_t *ppos, void **new_buf,
 				   enum bpf_attach_type type);
 
 int __cgroup_bpf_run_filter_setsockopt(struct sock *sock, int *level,
@@ -375,6 +376,7 @@ int bpf_percpu_cgroup_storage_update(struct bpf_map *map, void *key,
 	if (cgroup_bpf_enabled)						       \
 		__ret = __cgroup_bpf_run_filter_sysctl(head, table, write,     \
 						       buf, count, pos,        \
+						       NULL,                   \
 						       BPF_CGROUP_SYSCTL);     \
 	__ret;								       \
 })

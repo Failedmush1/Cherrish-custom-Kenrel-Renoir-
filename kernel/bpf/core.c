@@ -21,6 +21,11 @@
 #include <linux/filter.h>
 #include <linux/skbuff.h>
 #include <linux/vmalloc.h>
+#include <linux/cryptohash.h>
+#define SHA_DIGEST_WORDS SHA1_DIGEST_WORDS
+#define SHA_WORKSPACE_WORDS SHA1_WORKSPACE_WORDS
+#define sha_init sha1_init
+#define sha_transform sha1_transform
 #include <linux/random.h>
 #include <linux/moduleloader.h>
 #include <linux/bpf.h>
@@ -88,7 +93,7 @@ struct bpf_prog *bpf_prog_alloc_no_stats(unsigned int size, gfp_t gfp_extra_flag
 	struct bpf_prog *fp;
 
 	size = round_up(size, PAGE_SIZE);
-	fp = __vmalloc(size, gfp_flags, PAGE_KERNEL);
+	fp = __vmalloc(size, gfp_flags);
 	if (fp == NULL)
 		return NULL;
 
@@ -240,7 +245,7 @@ struct bpf_prog *bpf_prog_realloc(struct bpf_prog *fp_old, unsigned int size,
 	if (ret)
 		return NULL;
 
-	fp = __vmalloc(size, gfp_flags, PAGE_KERNEL);
+	fp = __vmalloc(size, gfp_flags);
 	if (fp == NULL) {
 		__bpf_prog_uncharge(fp_old->aux->user, delta);
 	} else {
@@ -1117,7 +1122,7 @@ static struct bpf_prog *bpf_prog_clone_create(struct bpf_prog *fp_other,
 	gfp_t gfp_flags = GFP_KERNEL | __GFP_ZERO | gfp_extra_flags;
 	struct bpf_prog *fp;
 
-	fp = __vmalloc(fp_other->pages * PAGE_SIZE, gfp_flags, PAGE_KERNEL);
+	fp = __vmalloc(fp_other->pages * PAGE_SIZE, gfp_flags);
 	if (fp != NULL) {
 		/* aux->prog still points to the fp_other one, so
 		 * when promoting the clone to the real program,
@@ -2366,6 +2371,12 @@ EXPORT_SYMBOL(bpf_stats_enabled_key);
 #undef TRACE_INCLUDE_PATH
 #define CREATE_TRACE_POINTS
 #include <linux/bpf_trace.h>
+
+struct notifier_block;
+int __weak mi_disp_register_client(struct notifier_block *nb) { return 0; }
+EXPORT_SYMBOL(mi_disp_register_client);
+int __weak mi_disp_unregister_client(struct notifier_block *nb) { return 0; }
+EXPORT_SYMBOL(mi_disp_unregister_client);
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(xdp_exception);
 EXPORT_TRACEPOINT_SYMBOL_GPL(xdp_bulk_tx);

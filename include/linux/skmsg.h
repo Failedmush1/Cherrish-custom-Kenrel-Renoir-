@@ -472,4 +472,30 @@ static inline bool sk_psock_strp_enabled(struct sk_psock *psock)
 		return false;
 	return psock->parser.enabled;
 }
+
+struct proto *tcp_bpf_get_proto(struct sock *sk, struct sk_psock *psock);
+
+static inline int tcp_bpf_init(struct sock *sk)
+{
+	struct sk_psock *psock = sk_psock(sk);
+
+	if (!psock)
+		return -EINVAL;
+	sk->sk_prot = tcp_bpf_get_proto(sk, psock);
+	return 0;
+}
+
+static inline void tcp_bpf_reinit(struct sock *sk)
+{
+	struct sk_psock *psock = sk_psock(sk);
+
+	if (psock)
+		sk->sk_prot = tcp_bpf_get_proto(sk, psock);
+}
+
+static inline struct sk_psock *sk_psock_get_checked(struct sock *sk)
+{
+	return sk_psock_get(sk);
+}
+
 #endif /* _LINUX_SKMSG_H */

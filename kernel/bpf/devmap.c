@@ -877,3 +877,8 @@ static int __init dev_map_init(void)
 }
 
 subsys_initcall(dev_map_init);
+
+void __dev_map_flush(struct bpf_map *map)
+{
+	__dev_flush();
+}

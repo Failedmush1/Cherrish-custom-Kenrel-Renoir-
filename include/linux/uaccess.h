@@ -390,3 +390,18 @@ void __noreturn usercopy_abort(const char *name, const char *detail,
 #endif
 
 #endif		/* __LINUX_UACCESS_H__ */
+
+/* BPF Compatibility Functions */
+long copy_from_kernel_nofault(void *dst, const void *src, size_t size);
+long copy_to_kernel_nofault(void *dst, const void *src, size_t size);
+#define get_kernel_nofault(val, ptr) copy_from_kernel_nofault(&(val), ptr, sizeof(val))
+#define put_kernel_nofault(ptr, val) ({ \
+	typeof(val) __val = (val); \
+	copy_to_kernel_nofault(ptr, &__val, sizeof(__val)); \
+})
+
+long strncpy_from_kernel_nofault(char *dst, const void *unsafe_addr, long count);
+long strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count);
+long strnlen_unsafe_user(const void __user *unsafe_addr, long count);
+long copy_from_user_nofault(void *dst, const void __user *src, size_t size);
+long copy_to_user_nofault(void __user *dst, const void *src, size_t size);

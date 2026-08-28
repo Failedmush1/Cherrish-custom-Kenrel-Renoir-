@@ -4640,5 +4640,16 @@ static inline void skb_reset_redirect(struct sk_buff *skb)
 #endif
 }
 
+void sock_pfree(struct sk_buff *skb);
+
+static inline bool skb_sk_is_prefetched(const struct sk_buff *skb)
+{
+#ifdef CONFIG_NET_CLS_ACT
+	return skb->sk && skb->destructor == sock_pfree;
+#else
+	return false;
+#endif
+}
+
 #endif	/* __KERNEL__ */
 #endif	/* _LINUX_SKBUFF_H */
