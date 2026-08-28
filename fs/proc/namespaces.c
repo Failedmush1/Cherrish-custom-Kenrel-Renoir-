@@ -52,9 +52,13 @@ static const char *proc_ns_get_link(struct dentry *dentry,
 		return ERR_PTR(-EACCES);
 
 	if (ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS)) {
-		error = ns_get_path(&ns_path, task, ns_ops);
-		if (!error)
+		void *err = ns_get_path(&ns_path, task, ns_ops);
+		if (!IS_ERR(err)) {
 			nd_jump_link(&ns_path);
+			error = 0;
+		} else {
+			error = PTR_ERR(err);
+		}
 	}
 	put_task_struct(task);
 	return ERR_PTR(error);
